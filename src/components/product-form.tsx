@@ -530,6 +530,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                     onImagesChange={setUploadedImages}
                     existingImages={product?.images || []}
                     maxFiles={8}
+                    uploadType="product"
                   />
                 </div>
               </TabsContent>

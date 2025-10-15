@@ -4,14 +4,48 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { services } from "@/lib/services-data";
+import { useQuery } from "@tanstack/react-query";
 import { 
   CheckCircle,
-  ArrowRight
+  ArrowRight,
+  Loader2,
+  Wrench,
+  Settings,
+  AlertCircle,
+  Shield
 } from "lucide-react";
+
+// Helper function to get icon and color based on category
+const getServiceIcon = (category: string) => {
+  switch (category) {
+    case 'Emergency':
+      return { icon: AlertCircle, color: 'bg-red-500' };
+    case 'Installations': 
+      return { icon: Wrench, color: 'bg-blue-500' };
+    case 'Maintenance':
+      return { icon: Settings, color: 'bg-green-500' };
+    default:
+      return { icon: Shield, color: 'bg-gray-500' };
+  }
+};
+
+function useServices() {
+  return useQuery({
+    queryKey: ['services'],
+    queryFn: async () => {
+      const response = await fetch('/api/services?limit=6');
+      if (!response.ok) {
+        throw new Error('Failed to fetch services');
+      }
+      return response.json();
+    },
+  });
+}
 
 const ServicesSection = () => {
   const router = useRouter();
+  const { data: servicesResponse, isLoading: servicesLoading, error: servicesError } = useServices();
+  const services = servicesResponse?.data || [];
 
   const processSteps = [
     {
@@ -59,11 +93,22 @@ const ServicesSection = () => {
           </p>
         </motion.div>
 
+        {/* Loading State */}
+        {servicesLoading && (
+          <div className="flex items-center justify-center py-16 mb-20">
+            <Loader2 className="w-8 h-8 animate-spin text-tire-orange mr-2" />
+            <span className="text-lg">Loading services...</span>
+          </div>
+        )}
+
         {/* Services Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
-          {services.map((service, index) => (
+        {!servicesLoading && !servicesError && (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
+            {services.map((service: any, index: number) => {
+              const { icon: IconComponent, color } = getServiceIcon(service.category);
+              return (
             <motion.div
-              key={service.title}
+              key={service.id}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: index * 0.1 }}
@@ -74,14 +119,14 @@ const ServicesSection = () => {
               <Card className="h-full hover:shadow-xl transition-all py-0 duration-300 border-0 shadow-lg">
                 <CardContent className="p-8 space-y-6">
                   {/* Icon */}
-                  <div className={`${service.color} w-16 h-16 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                    <service.icon className="w-8 h-8 text-white" />
+                  <div className={`${color} w-16 h-16 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    <IconComponent className="w-8 h-8 text-white" />
                   </div>
 
                   {/* Content */}
                   <div>
                     <h3 className="text-xl font-bold text-tire-dark mb-3">
-                      {service.title}
+                      {service.name}
                     </h3>
                     <p className="text-tire-gray mb-4">
                       {service.description}
@@ -90,7 +135,7 @@ const ServicesSection = () => {
 
                   {/* Features */}
                   <div className="space-y-2">
-                    {service.features.map((feature, idx) => (
+                    {service.features?.map((feature: any, idx: number) => (
                       <div key={idx} className="flex items-center text-sm text-tire-gray">
                         <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
                         {feature}
@@ -102,20 +147,24 @@ const ServicesSection = () => {
                   <div className="border-t pt-6">
                     <div className="flex items-center justify-between mb-4">
                       <span className="text-2xl font-bold text-tire-dark">
-                        {service.price}
+                        €{service.basePrice}
+                      </span>
+                      <span className="text-sm text-tire-gray">
+                        {service.estimatedDuration} min
                       </span>
                     </div>
-                                          <Button className="w-full group-hover:bg-tire-orange transition-colors"
-                              onClick={() => router.push(`/services/${service.slug}`)}>
-                        Learn More
-                        <ArrowRight className="w-4 h-4 ml-2" />
-                      </Button>
+                    <Button className="w-full group-hover:bg-tire-orange transition-colors"
+                            onClick={() => router.push(`/services/${service.slug}`)}>
+                      Learn More
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
             </motion.div>
-          ))}
-        </div>
+            )})}
+          </div>
+        )}
 
         {/* Process Section */}
         <motion.div
@@ -161,8 +210,12 @@ const ServicesSection = () => {
             ))}
           </div>
 
-          <div className="text-center mt-12">
-            <Button size="lg" className="bg-tire-orange hover:bg-tire-orange/90 text-white px-8 py-4 rounded-full">
+                    <div className="text-center mt-12">
+            <Button 
+              size="lg" 
+              className="bg-tire-orange hover:bg-tire-orange/90 text-white px-8 py-4 rounded-full"
+              onClick={() => router.push('/booking')}
+            >
               Schedule Service Now
             </Button>
           </div>

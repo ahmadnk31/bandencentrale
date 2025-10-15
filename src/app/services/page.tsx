@@ -7,7 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
-import { getAllServiceCategories } from "@/lib/services-data";
+import { useQuery } from "@tanstack/react-query";
+
+function useServiceCategories() {
+  return useQuery({
+    queryKey: ['service-categories'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/service-categories');
+      if (!response.ok) {
+        throw new Error('Failed to fetch service categories');
+      }
+      return response.json();
+    },
+  });
+}
 import { 
   Phone, 
   MapPin, 
@@ -23,6 +36,8 @@ import {
 
 const ServicesPage = () => {
   const router = useRouter();
+  const { data: categoriesResponse, isLoading: categoriesLoading } = useServiceCategories();
+  const categories = categoriesResponse?.data || [];
   const stats = [
     { number: "50,000+", label: "Tires Installed", icon: Car },
     { number: "98%", label: "Customer Satisfaction", icon: Star },
@@ -116,7 +131,7 @@ const ServicesPage = () => {
             <h3 className="text-xl font-semibold text-tire-dark">Browse by Category</h3>
           </div>
           <div className="flex flex-wrap justify-center gap-4">
-            {getAllServiceCategories().map(category => (
+            {categories.map((category: any) => (
               <Badge 
                 key={category}
                 variant="outline" 
@@ -296,7 +311,11 @@ const ServicesPage = () => {
               trust BandenCentrale for their automotive needs.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" className="bg-tire-orange hover:bg-tire-orange/90 px-8">
+              <Button 
+                size="lg" 
+                className="bg-tire-orange hover:bg-tire-orange/90 px-8"
+                onClick={() => router.push('/booking')}
+              >
                 <Calendar className="w-5 h-5 mr-2" />
                 Schedule Service
               </Button>

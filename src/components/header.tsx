@@ -14,20 +14,33 @@ import {
   ShoppingCart,
   Settings,
   Heart,
-  Search
+  Search,
+  LogOut,
+  UserCircle,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useCart } from "@/lib/cart-context";
 import { useRouter } from "next/navigation";
+import { useSession, signOut } from "@/lib/auth/client";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const { state } = useCart();
   const router = useRouter();
+  const { data: session, isPending } = useSession();
 
   const navigationItems = [
     { name: "Home", href: "/" },
@@ -45,6 +58,19 @@ const Header = () => {
       setIsOpen(false);
     }
   };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
+
+  const isAdmin = session?.user && false; // Will be replaced with actual role check when DB is connected
+
+ 
 
   return (
     <>
@@ -67,15 +93,71 @@ const Header = () => {
             </div>
           </div>
           <div className="flex items-center space-x-3 sm:space-x-4">
-            <Link href="/admin" className="hover:text-tire-orange transition-colors">
-              <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
-            </Link>
-            <Link href="/account" className="hover:text-tire-orange transition-colors">
-              <User className="w-3 h-3 sm:w-4 sm:h-4" />
-            </Link>
-            <Link href="/favorites" className="hover:text-tire-orange transition-colors">
-              <Heart className="w-3 h-3 sm:w-4 sm:h-4" />
-            </Link>
+            {/* Authentication Links */}
+            {session ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="flex items-center space-x-1">
+                    <UserCircle className="w-4 h-4" />
+                    <span className="hidden sm:inline text-xs">
+                      {session.user.name || session.user.email}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard" className="flex items-center">
+                      <User className="w-4 h-4 mr-2" />
+                      Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin" className="flex items-center">
+                        <Shield className="w-4 h-4 mr-2" />
+                        Admin Panel
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <Link href="/favorites" className="flex items-center">
+                      <Heart className="w-4 h-4 mr-2" />
+                      Favorites
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="flex items-center text-red-600">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Link href="/login" className="hover:text-tire-orange transition-colors text-sm">
+                  Sign In
+                </Link>
+                <Link href="/register" className="hover:text-tire-orange transition-colors text-sm">
+                  Register
+                </Link>
+              </>
+            )}
+            
+            {/* Admin Link - only show if not authenticated or not admin */}
+            {!session && (
+              <Link href="/admin" className="hover:text-tire-orange transition-colors">
+                <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
+              </Link>
+            )}
+            
+            {/* Favorites link for non-authenticated users */}
+            {!session && (
+              <Link href="/favorites" className="hover:text-tire-orange transition-colors">
+                <Heart className="w-3 h-3 sm:w-4 sm:h-4" />
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -98,17 +180,13 @@ const Header = () => {
               >
                 <Car className="w-6 h-6 sm:w-8 sm:h-8 text-white tire-spin" />
               </motion.div>
-              <div className="hidden sm:block">
+              <div className="hidden md:block">
                 <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-tire-dark to-primary bg-clip-text text-transparent">
                   BandenCentrale
                 </h1>
                 <p className="text-xs sm:text-sm text-tire-gray">Premium Tire Solutions</p>
               </div>
-              <div className="sm:hidden">
-                <h1 className="text-lg font-bold bg-gradient-to-r from-tire-dark to-primary bg-clip-text text-transparent">
-                  BandenCentrale
-                </h1>
-              </div>
+              
             </Link>
 
             {/* Desktop Navigation */}
@@ -230,6 +308,80 @@ const Header = () => {
                         {item.name}
                       </Link>
                     ))}
+                    
+                    {/* Mobile Auth Links */}
+                    <div className="pt-4 border-t space-y-3">
+                      {session ? (
+                        <>
+                          <div className="text-sm text-gray-600">
+                            Signed in as {session.user.name || session.user.email}
+                          </div>
+                          <Link
+                            href="/dashboard"
+                            className="flex items-center text-lg font-medium text-tire-dark hover:text-primary transition-colors py-2"
+                            onClick={() => setIsOpen(false)}
+                          >
+                            <User className="w-5 h-5 mr-3" />
+                            Dashboard
+                          </Link>
+                          {isAdmin && (
+                            <Link
+                              href="/admin"
+                              className="flex items-center text-lg font-medium text-tire-dark hover:text-primary transition-colors py-2"
+                              onClick={() => setIsOpen(false)}
+                            >
+                              <Shield className="w-5 h-5 mr-3" />
+                              Admin Panel
+                            </Link>
+                          )}
+                          <Link
+                            href="/favorites"
+                            className="flex items-center text-lg font-medium text-tire-dark hover:text-primary transition-colors py-2"
+                            onClick={() => setIsOpen(false)}
+                          >
+                            <Heart className="w-5 h-5 mr-3" />
+                            Favorites
+                          </Link>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start py-3 text-red-600"
+                            onClick={() => {
+                              handleSignOut();
+                              setIsOpen(false);
+                            }}
+                          >
+                            <LogOut className="w-4 h-4 mr-2" />
+                            Sign Out
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Link
+                            href="/login"
+                            className="text-lg font-medium text-tire-dark hover:text-primary transition-colors py-2 block"
+                            onClick={() => setIsOpen(false)}
+                          >
+                            Sign In
+                          </Link>
+                          <Link
+                            href="/register"
+                            className="text-lg font-medium text-tire-dark hover:text-primary transition-colors py-2 block"
+                            onClick={() => setIsOpen(false)}
+                          >
+                            Register
+                          </Link>
+                          <Link
+                            href="/favorites"
+                            className="flex items-center text-lg font-medium text-tire-dark hover:text-primary transition-colors py-2"
+                            onClick={() => setIsOpen(false)}
+                          >
+                            <Heart className="w-5 h-5 mr-3" />
+                            Favorites
+                          </Link>
+                        </>
+                      )}
+                    </div>
+                    
                     <div className="pt-6 border-t space-y-4">
                       <Button className="w-full bg-tire-gradient py-3" onClick={() => {
                         router.push('/quote');

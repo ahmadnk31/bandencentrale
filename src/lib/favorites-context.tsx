@@ -3,17 +3,17 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 
 interface FavoritesContextType {
-  favorites: number[];
-  addToFavorites: (id: number) => void;
-  removeFromFavorites: (id: number) => void;
-  isFavorite: (id: number) => boolean;
-  toggleFavorite: (id: number) => void;
+  favorites: (number | string)[];
+  addToFavorites: (id: number | string) => void;
+  removeFromFavorites: (id: number | string) => void;
+  isFavorite: (id: number | string) => boolean;
+  toggleFavorite: (id: number | string) => void;
 }
 
 const FavoritesContext = createContext<FavoritesContextType | undefined>(undefined);
 
 export const FavoritesProvider = ({ children }: { children: ReactNode }) => {
-  const [favorites, setFavorites] = useState<number[]>([]);
+  const [favorites, setFavorites] = useState<(number | string)[]>([]);
 
   // Load favorites from localStorage on mount
   useEffect(() => {
@@ -32,19 +32,19 @@ export const FavoritesProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('bandencentrale-favorites', JSON.stringify(favorites));
   }, [favorites]);
 
-  const addToFavorites = (id: number) => {
+  const addToFavorites = (id: number | string) => {
     setFavorites(prev => prev.includes(id) ? prev : [...prev, id]);
   };
 
-  const removeFromFavorites = (id: number) => {
+  const removeFromFavorites = (id: number | string) => {
     setFavorites(prev => prev.filter(favId => favId !== id));
   };
 
-  const isFavorite = (id: number) => {
+  const isFavorite = (id: number | string) => {
     return favorites.includes(id);
   };
 
-  const toggleFavorite = (id: number) => {
+  const toggleFavorite = (id: number | string) => {
     if (isFavorite(id)) {
       removeFromFavorites(id);
     } else {

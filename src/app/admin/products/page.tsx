@@ -1,140 +1,300 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
+import { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Modal, ModalContent, ModalHeader, ModalTitle } from '@/components/ui/modal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import ImageUpload, { UploadedImage } from '@/components/image-upload';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import ProductCard from '@/components/product-card';
 import { 
   Plus, 
   Search, 
-  Filter, 
   Edit, 
   Trash2, 
   Eye,
-  MoreVertical,
   Package,
   TrendingUp,
-  TrendingDown,
-  Image as ImageIcon,
-  Upload,
-  Download,
   RefreshCw,
   AlertTriangle,
   CheckCircle,
-  XCircle,
-  Star,
-  Tag,
-  Layers,
-  BarChart3,
+  Loader2,
+  ArrowLeft,
+  ArrowRight,
+  Save,
   ChevronLeft,
   ChevronRight,
-  Maximize2,
-  X
-} from "lucide-react";
-import ProductForm from "@/components/product-form";
-import { UploadedImage } from "@/components/image-upload";
+  Grid3X3,
+  List
+} from 'lucide-react';
+import Image from 'next/image';
 import { 
-  Product, 
-  ProductFilter, 
-  ProductStats, 
-  ProductFormData, 
-  productAPI 
-} from "@/lib/product-data";
-import Image from "next/image";
+  useProducts, 
+  useProductStats, 
+  useCreateProduct, 
+  useUpdateProduct, 
+  useDeleteProduct,
+  useExportProducts
+} from '@/hooks/use-products';
+import { Product, ProductFilters, CreateProductData } from '@/lib/api/products';
+import { useCategories } from '@/lib/hooks/useCategories';
+import { useBrands } from '@/lib/hooks/useBrands';
+import { safeToNumber } from '@/lib/utils/price';
 
-const ProductsPage = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [stats, setStats] = useState<ProductStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [activeView, setActiveView] = useState<'grid' | 'table'>('table');
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [isImageFullscreen, setIsImageFullscreen] = useState(false);
-  
+export default function ProductsPage() {
   // Filter states
-  const [filters, setFilters] = useState<ProductFilter>({
+  const [filters, setFilters] = useState<ProductFilters>({
     search: '',
     category: 'all',
     brand: 'all',
     status: 'all',
     sortBy: 'name',
-    sortOrder: 'asc'
+    sortOrder: 'asc',
+    page: 1,
+    limit: 10
   });
 
-  // Load products
-  useEffect(() => {
-    loadProducts();
-  }, [filters]);
+  // TanStack Query hooks
+  const { data: productsResponse, isLoading, refetch } = useProducts(filters);
+  const { data: statsResponse, isLoading: isStatsLoading } = useProductStats();
+  const createProductMutation = useCreateProduct();
+  const updateProductMutation = useUpdateProduct();
+  const deleteProductMutation = useDeleteProduct();
+  const exportProductsMutation = useExportProducts();
 
-  // Keyboard navigation for images
+  // Local state for UI
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'table'>('grid');
+   const [formData, setFormData] = useState<CreateProductData>({
+    name: '',
+    sku: '',
+    description: '',
+    shortDescription: '',
+    price: 0,
+    compareAtPrice: 0,
+    cost: 0,
+    stockQuantity: 0,
+    lowStockThreshold: 10,
+    trackQuantity: true,
+    isActive: true,
+    isFeatured: false,
+    images: [],
+    categoryId: '',
+    brandId: '',
+    
+    // Tire-specific fields
+    size: '',
+    width: 0,
+    aspectRatio: 0,
+    rimDiameter: 0,
+    season: '',
+    tireType: '',
+    speedRating: '',
+    loadIndex: 0,
+    runFlat: false,
+    fuelEfficiency: '',
+    wetGrip: '',
+    noiseLevel: 0,
+    
+    // Additional attributes
+    weight: 0,
+    dimensions: {},
+    features: [],
+    specifications: {},
+    
+    // SEO fields
+    metaTitle: '',
+    metaDescription: ''
+  });
+
+  // Multi-step form state
+  const [currentStep, setCurrentStep] = useState(1);
+  const [editCurrentStep, setEditCurrentStep] = useState(1);
+  const [isFormDirty, setIsFormDirty] = useState(false);
+  const totalSteps = 6;
+
+  // Add React Query hooks for categories and brands
+  const { data: categoriesResponse, isLoading: categoriesLoading } = useCategories();
+  const { data: brandsResponse, isLoading: brandsLoading } = useBrands();
+
+  const categories = categoriesResponse || [];
+  const brands = brandsResponse || [];
+
+  // localStorage key for form persistence
+  const FORM_STORAGE_KEY = 'product-form-draft';
+
+  // Load form data from localStorage on component mount
   useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      if (isViewDialogOpen || isImageFullscreen) {
-        switch (event.key) {
-          case 'ArrowLeft':
-            event.preventDefault();
-            previousImage();
-            break;
-          case 'ArrowRight':
-            event.preventDefault();
-            nextImage();
-            break;
-          case 'Escape':
-            if (isImageFullscreen) {
-              setIsImageFullscreen(false);
-            }
-            break;
-        }
+    const savedData = localStorage.getItem(FORM_STORAGE_KEY);
+    if (savedData) {
+      try {
+        const parsedData = JSON.parse(savedData);
+        setFormData(parsedData.formData || formData);
+        setCurrentStep(parsedData.currentStep || 1);
+        setIsFormDirty(true);
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
       }
-    };
+    }
+  }, []);
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-    };
-  }, [isViewDialogOpen, isImageFullscreen, currentImageIndex, selectedProduct]);
+  // Save form data to localStorage when it changes
+  useEffect(() => {
+    if (isFormDirty) {
+      const dataToSave = {
+        formData,
+        currentStep,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(dataToSave));
+    }
+  }, [formData, currentStep, isFormDirty]);
 
-  const loadProducts = async () => {
-    setLoading(true);
-    try {
-      const result = await productAPI.getProducts(filters);
-      setProducts(result.products);
-      setStats(result.stats);
-    } catch (error) {
-      console.error('Failed to load products:', error);
-    } finally {
-      setLoading(false);
+  // Clear localStorage when form is submitted or reset
+  const clearFormStorage = useCallback(() => {
+    localStorage.removeItem(FORM_STORAGE_KEY);
+    setIsFormDirty(false);
+  }, [FORM_STORAGE_KEY]);
+
+  // Step navigation functions
+  const nextStep = useCallback(() => {
+    if (currentStep < totalSteps) {
+      setCurrentStep(prev => prev + 1);
+    }
+  }, [currentStep, totalSteps]);
+
+  const prevStep = useCallback(() => {
+    if (currentStep > 1) {
+      setCurrentStep(prev => prev - 1);
+    }
+  }, [currentStep]);
+
+  const goToStep = useCallback((step: number) => {
+    if (step >= 1 && step <= totalSteps) {
+      setCurrentStep(step);
+    }
+  }, [totalSteps]);
+
+  // Edit dialog step navigation functions
+  const editNextStep = useCallback(() => {
+    if (editCurrentStep < totalSteps) {
+      setEditCurrentStep(prev => prev + 1);
+    }
+  }, [editCurrentStep, totalSteps]);
+
+  const editPrevStep = useCallback(() => {
+    if (editCurrentStep > 1) {
+      setEditCurrentStep(prev => prev - 1);
+    }
+  }, [editCurrentStep]);
+
+  const editGoToStep = useCallback((step: number) => {
+    if (step >= 1 && step <= totalSteps) {
+      setEditCurrentStep(step);
+    }
+  }, [totalSteps]);
+
+  // Step validation
+  const validateStep = (step: number): boolean => {
+    switch (step) {
+      case 1: // Basic Information
+        return !!(formData.name?.trim() && formData.sku?.trim() && formData.categoryId && formData.brandId);
+      case 2: // Pricing & Inventory
+        return !!(formData.price > 0 && formData.stockQuantity >= 0);
+      case 3: // Tire Specifications
+        return true; // Optional fields
+      case 4: // Physical Properties
+        return true; // Optional fields
+      case 5: // Images
+        return true; // Optional
+      case 6: // SEO & Meta
+        return true; // Optional
+      default:
+        return true;
     }
   };
 
-  const handleSaveProduct = async (productData: ProductFormData, images: UploadedImage[]) => {
+  const canProceedToNextStep = validateStep(currentStep);
+
+  // Get step title for navigation
+  const getStepTitle = (step: number): string => {
+    switch (step) {
+      case 1: return 'Basic Info';
+      case 2: return 'Pricing';
+      case 3: return 'Tire Specs';
+      case 4: return 'Physical';
+      case 5: return 'Images';
+      case 6: return 'SEO';
+      default: return `Step ${step}`;
+    }
+  };
+
+  // Updated form change handler to track dirty state
+  const handleFormDataChange = useCallback((updates: Partial<CreateProductData>) => {
+    setFormData(prev => ({ ...prev, ...updates }));
+    setIsFormDirty(true);
+  }, []);
+
+  // Form state
+ 
+
+  // Derived data
+  const products = productsResponse?.data || [];
+  const stats = statsResponse?.data || null;
+  const loading = isLoading || isStatsLoading;
+  const pagination = productsResponse?.pagination;
+
+  // Handlers
+  const handleFilterChange = (key: keyof ProductFilters, value: any) => {
+    setFilters(prev => ({ ...prev, [key]: value, page: 1 }));
+  };
+
+  const handlePageChange = (page: number) => {
+    setFilters(prev => ({ ...prev, page }));
+  };
+
+  const handleCreateProduct = async () => {
     try {
-      if (selectedProduct) {
-        await productAPI.updateProduct(selectedProduct.id, productData);
-      } else {
-        await productAPI.createProduct(productData);
-      }
-      
+      await createProductMutation.mutateAsync(formData);
       setIsAddDialogOpen(false);
-      setIsEditDialogOpen(false);
-      setSelectedProduct(null);
-      await loadProducts();
+      resetForm();
+      clearFormStorage();
     } catch (error) {
-      console.error('Failed to save product:', error);
+      console.error('Failed to create product:', error);
+    }
+  };
+
+  const handleUpdateProduct = async () => {
+    if (!editingProduct) return;
+    
+    try {
+      await updateProductMutation.mutateAsync({
+        id: editingProduct.id,
+        ...formData
+      });
+      setIsEditDialogOpen(false);
+      setEditingProduct(null);
+      resetForm();
+    } catch (error) {
+      console.error('Failed to update product:', error);
     }
   };
 
@@ -146,202 +306,171 @@ const ProductsPage = () => {
   const confirmDeleteProduct = async () => {
     if (!productToDelete) return;
     
-    setIsDeleting(true);
     try {
-      await productAPI.deleteProduct(productToDelete.id);
-      await loadProducts();
+      await deleteProductMutation.mutateAsync(productToDelete.id);
       setIsDeleteDialogOpen(false);
       setProductToDelete(null);
     } catch (error) {
       console.error('Failed to delete product:', error);
-    } finally {
-      setIsDeleting(false);
     }
   };
 
-  const cancelDeleteProduct = () => {
-    setIsDeleteDialogOpen(false);
-    setProductToDelete(null);
-  };
-
-  const handleEditProduct = (product: Product) => {
-    setSelectedProduct(product);
+  const handleEdit = (product: Product) => {
+    setFormData({
+      name: product.name,
+      sku: product.sku,
+      description: product.description || '',
+      shortDescription: product.shortDescription || '',
+      price: product.price,
+      compareAtPrice: product.compareAtPrice || 0,
+      cost: product.cost || 0,
+      stockQuantity: product.stockQuantity,
+      lowStockThreshold: product.lowStockThreshold || 10,
+      trackQuantity: product.trackQuantity ?? true,
+      isActive: product.isActive,
+      isFeatured: product.isFeatured || false,
+      images: product.images || [],
+      categoryId: product.categoryId || '',
+      brandId: product.brandId || '',
+      
+      // Tire-specific fields
+      size: product.size || '',
+      width: product.width || 0,
+      aspectRatio: product.aspectRatio || 0,
+      rimDiameter: product.rimDiameter || 0,
+      season: product.season || '',
+      tireType: product.tireType || '',
+      speedRating: product.speedRating || '',
+      loadIndex: product.loadIndex || 0,
+      runFlat: product.runFlat || false,
+      fuelEfficiency: product.fuelEfficiency || '',
+      wetGrip: product.wetGrip || '',
+      noiseLevel: product.noiseLevel || 0,
+      
+      // Additional attributes
+      weight: product.weight || 0,
+      dimensions: product.dimensions || {},
+      features: product.features || [],
+      specifications: product.specifications || {},
+      
+      // SEO fields
+      metaTitle: product.metaTitle || '',
+      metaDescription: product.metaDescription || ''
+    });
+    setUploadedImages([]); // Clear any uploaded images when editing
+    setEditCurrentStep(1); // Reset to first step
+    setEditingProduct(product);
     setIsEditDialogOpen(true);
   };
 
   const handleViewProduct = (product: Product) => {
     setSelectedProduct(product);
-    setCurrentImageIndex(0); // Reset to first image
     setIsViewDialogOpen(true);
   };
 
-  const nextImage = () => {
-    if (selectedProduct && currentImageIndex < selectedProduct.images.length - 1) {
-      setCurrentImageIndex(currentImageIndex + 1);
-    }
+  const resetForm = useCallback(() => {
+    setFormData({
+      name: '',
+      sku: '',
+      description: '',
+      shortDescription: '',
+      price: 0,
+      compareAtPrice: 0,
+      cost: 0,
+      stockQuantity: 0,
+      lowStockThreshold: 10,
+      trackQuantity: true,
+      isActive: true,
+      isFeatured: false,
+      images: [],
+      categoryId: '',
+      brandId: '',
+      
+      // Tire-specific fields
+      size: '',
+      width: 0,
+      aspectRatio: 0,
+      rimDiameter: 0,
+      season: '',
+      tireType: '',
+      speedRating: '',
+      loadIndex: 0,
+      runFlat: false,
+      fuelEfficiency: '',
+      wetGrip: '',
+      noiseLevel: 0,
+      
+      // Additional attributes
+      weight: 0,
+      dimensions: {},
+      features: [],
+      specifications: {},
+      
+      // SEO fields
+      metaTitle: '',
+      metaDescription: ''
+    });
+    setUploadedImages([]);
+    setCurrentStep(1);
+    clearFormStorage();
+  }, []);
+
+  const getStatusColor = (isActive: boolean) => {
+    return isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
   };
 
-  const previousImage = () => {
-    if (currentImageIndex > 0) {
-      setCurrentImageIndex(currentImageIndex - 1);
-    }
+  const getStockColor = (stock: number, threshold: number) => {
+    if (stock === 0) return 'text-red-600';
+    if (stock <= threshold) return 'text-yellow-600';
+    return 'text-green-600';
   };
 
-  const selectImage = (index: number) => {
-    setCurrentImageIndex(index);
-  };
-
-  const toggleFullscreen = () => {
-    setIsImageFullscreen(!isImageFullscreen);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'inactive': return 'bg-gray-100 text-gray-800';
-      case 'discontinued': return 'bg-red-100 text-red-800';
-      case 'coming-soon': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStockStatus = (product: Product) => {
-    const available = product.inventory.availableQuantity;
-    const reorder = product.inventory.reorderLevel;
-    
-    if (available === 0) return { status: 'out-of-stock', color: 'text-red-600' };
-    if (available <= reorder) return { status: 'low-stock', color: 'text-yellow-600' };
-    return { status: 'in-stock', color: 'text-green-600' };
-  };
-
-  const StatCard = ({ title, value, change, changeType, description, icon: Icon }: any) => (
+  const StatCard = ({ title, value, change, icon: Icon, format }: any) => (
     <Card className="hover:shadow-lg transition-shadow">
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold text-gray-900 mt-2">{value}</p>
+            <p className="text-2xl font-bold text-gray-900 mt-2">
+              {format ? format(value) : value?.toLocaleString() || 0}
+            </p>
           </div>
-          <div className={`p-3 rounded-full ${
-            changeType === 'increase' ? 'bg-tire-orange/10' : 'bg-green-100'
-          }`}>
-            <Icon className={`w-6 h-6 ${
-              changeType === 'increase' ? 'text-tire-orange' : 'text-green-600'
-            }`} />
+          <div className="p-3 rounded-full bg-blue-100">
+            <Icon className="w-6 h-6 text-blue-600" />
           </div>
         </div>
-        <div className="flex items-center mt-4">
-          <span className={`text-sm font-medium ${
-            changeType === 'increase' ? 'text-tire-orange' : 'text-green-600'
-          }`}>
-            {change}
-          </span>
-          <span className="text-sm text-gray-500 ml-2">{description}</span>
-        </div>
+        {change && (
+          <div className="flex items-center mt-4">
+            <span className="text-sm font-medium text-green-600">{change}</span>
+            <span className="text-sm text-gray-500 ml-2">vs last month</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
-
-  const ProductCard = ({ product }: { product: Product }) => {
-    const stockStatus = getStockStatus(product);
-    
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        className="group"
-      >
-        <Card className="overflow-hidden hover:shadow-lg transition-all duration-300">
-          <div className="relative aspect-square">
-            <Image
-              src={product.thumbnailImage}
-              alt={product.name}
-              fill
-              className="object-cover"
-            />
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
-              <div className="opacity-0 group-hover:opacity-100 flex space-x-2">
-                <Button size="sm" variant="ghost" className="text-white hover:text-white hover:bg-black/20" onClick={() => handleViewProduct(product)}>
-                  <Eye className="w-4 h-4" />
-                </Button>
-                <Button size="sm" variant="ghost" className="text-white hover:text-white hover:bg-black/20" onClick={() => handleEditProduct(product)}>
-                  <Edit className="w-4 h-4" />
-                </Button>
-                <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-900/20" onClick={() => handleDeleteProduct(product)}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-            
-            {/* Status badges */}
-            <div className="absolute top-2 left-2 flex flex-col space-y-1">
-              {product.featured && <Badge className="bg-tire-orange text-white"><Star className="w-3 h-3" /></Badge>}
-              {product.newArrival && <Badge variant="secondary">New</Badge>}
-              {product.onSale && <Badge className="bg-red-500 text-white">Sale</Badge>}
-            </div>
-            
-            {/* Image count indicator */}
-            {product.images.length > 1 && (
-              <div className="absolute top-2 right-2">
-                <Badge variant="secondary" className="bg-black/70 text-white text-xs">
-                  <ImageIcon className="w-3 h-3 mr-1" />
-                  {product.images.length}
-                </Badge>
-              </div>
-            )}
-            
-            {/* Stock status */}
-            <div className={`absolute ${product.images.length > 1 ? 'bottom-2 right-2' : 'top-2 right-2'}`}>
-              <Badge className={getStatusColor(product.status)}>
-                {product.status.replace('-', ' ')}
-              </Badge>
-            </div>
-          </div>
-          
-          <CardContent className="p-4">
-            <div className="space-y-2">
-              <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
-              <p className="text-sm text-gray-600">{product.brand} • {product.category}</p>
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-lg font-bold text-gray-900">€{product.pricing.basePrice}</span>
-                  {product.pricing.salePrice && (
-                    <span className="text-sm text-gray-500 line-through ml-2">€{product.pricing.salePrice}</span>
-                  )}
-                </div>
-                <span className={`text-sm font-medium ${stockStatus.color}`}>
-                  {product.inventory.availableQuantity} in stock
-                </span>
-              </div>
-              
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>SKU: {product.inventory.sku}</span>
-                <span>{product.salesData.totalSold} sold</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    );
-  };
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-600 mt-2">Manage your tire inventory and product catalog with advanced image uploading and AWS S3 integration.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Product Management</h1>
+          <p className="text-gray-600 mt-2">Manage your tire inventory and product catalog</p>
         </div>
-        <Button 
-          className="bg-tire-gradient"
-          onClick={() => setIsAddDialogOpen(true)}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Product
-        </Button>
+        <div className="flex space-x-3">
+          <Button
+            variant="outline"
+            onClick={() => exportProductsMutation.mutate(filters)}
+            disabled={exportProductsMutation.isPending}
+          >
+            {exportProductsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Export
+          </Button>
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Product
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -349,46 +478,38 @@ const ProductsPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             title="Total Products"
-            value={stats.totalProducts.toLocaleString()}
+            value={stats.totalProducts}
             change="+12"
-            changeType="increase"
-            description="this month"
             icon={Package}
           />
           <StatCard
-            title="Total Value"
-            value={`€${stats.totalValue.toLocaleString()}`}
-            change="+8.2%"
-            changeType="increase"
-            description="inventory value"
-            icon={BarChart3}
+            title="Active Products"
+            value={stats.activeProducts}
+            change="+8"
+            icon={CheckCircle}
           />
           <StatCard
             title="Low Stock"
             value={stats.lowStockProducts}
-            change="-5"
-            changeType="decrease"
-            description="need restocking"
             icon={AlertTriangle}
           />
           <StatCard
-            title="Featured"
-            value={stats.featuredProducts}
-            change="+3"
-            changeType="increase"
-            description="featured products"
-            icon={Star}
+            title="Total Value"
+            value={stats.totalValue}
+            format={(val: number) => `€${val.toLocaleString()}`}
+            change="+€15,420"
+            icon={TrendingUp}
           />
         </div>
       )}
 
-      {/* Filters and Controls */}
+      {/* Products Section */}
       <Card>
         <CardHeader>
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
             <CardTitle className="flex items-center">
-              <Layers className="w-5 h-5 mr-2" />
-              Product Catalog
+              <Package className="w-5 h-5 mr-2" />
+              Products
             </CardTitle>
             
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 w-full lg:w-auto">
@@ -398,69 +519,56 @@ const ProductsPage = () => {
                 <Input
                   placeholder="Search products..."
                   value={filters.search}
-                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                  onChange={(e) => handleFilterChange('search', e.target.value)}
                   className="pl-10 w-full sm:w-64"
                 />
               </div>
 
-              {/* Category Filter */}
+              {/* Status Filter */}
               <Select 
-                value={filters.category} 
-                onValueChange={(value) => setFilters(prev => ({ ...prev, category: value }))}
+                value={filters.status} 
+                onValueChange={(value) => handleFilterChange('status', value)}
               >
-                <SelectTrigger className="w-full sm:w-40">
-                  <Filter className="w-4 h-4 mr-2" />
+                <SelectTrigger className="w-full sm:w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="summer">Summer</SelectItem>
-                  <SelectItem value="winter">Winter</SelectItem>
-                  <SelectItem value="all-season">All-Season</SelectItem>
-                  <SelectItem value="performance">Performance</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Brand Filter */}
-              <Select 
-                value={filters.brand} 
-                onValueChange={(value) => setFilters(prev => ({ ...prev, brand: value }))}
-              >
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="All Brands" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Brands</SelectItem>
-                  <SelectItem value="michelin">Michelin</SelectItem>
-                  <SelectItem value="continental">Continental</SelectItem>
-                  <SelectItem value="bridgestone">Bridgestone</SelectItem>
-                  <SelectItem value="pirelli">Pirelli</SelectItem>
-                  <SelectItem value="goodyear">Goodyear</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
 
               {/* View Toggle */}
-              <div className="flex border rounded-lg">
+              <div className="flex border rounded-lg p-1 bg-gray-50">
                 <Button
-                  variant={activeView === 'table' ? 'default' : 'ghost'}
+                  variant={viewMode === 'grid' ? 'default' : 'ghost'}
                   size="sm"
-                  onClick={() => setActiveView('table')}
-                  className="rounded-r-none"
+                  onClick={() => setViewMode('grid')}
+                  className="px-3"
                 >
-                  Table
+                  <Grid3X3 className="w-4 h-4" />
                 </Button>
                 <Button
-                  variant={activeView === 'grid' ? 'default' : 'ghost'}
+                  variant={viewMode === 'list' ? 'default' : 'ghost'}
                   size="sm"
-                  onClick={() => setActiveView('grid')}
-                  className="rounded-l-none"
+                  onClick={() => setViewMode('list')}
+                  className="px-3"
                 >
-                  Grid
+                  <List className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'table' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('table')}
+                  className="px-3"
+                >
+                  <Package className="w-4 h-4" />
                 </Button>
               </div>
 
               {/* Refresh */}
-              <Button variant="outline" size="sm" onClick={loadProducts} disabled={loading}>
+              <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
             </div>
@@ -468,98 +576,183 @@ const ProductsPage = () => {
         </CardHeader>
         
         <CardContent>
-          <AnimatePresence mode="wait">
-            {activeView === 'table' ? (
-              <motion.div
-                key="table"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="overflow-x-auto"
-              >
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Brand</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead>Stock</TableHead>
-                      <TableHead>Sales</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Rating</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {products.map((product) => {
-                      const stockStatus = getStockStatus(product);
-                      return (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin" />
+              <span className="ml-2">Loading products...</span>
+            </div>
+          ) : (
+            <>
+              {/* Grid/List View */}
+              {(viewMode === 'grid' || viewMode === 'list') && (
+                <div className={`${
+                  viewMode === 'grid' 
+                    ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' 
+                    : 'space-y-4'
+                }`}>
+                  {products.map((product) => (
+                    <div key={product.id} className="relative group">
+                      <ProductCard
+                        id={parseInt(product.id)}
+                        name={product.name}
+                        brand={product.brand?.name || 'Unknown'}
+                        price={safeToNumber(product.price)}
+                        originalPrice={safeToNumber(product.compareAtPrice)}
+                        images={product.images?.map(url => ({ src: url, alt: product.name })) || []}
+                        rating={4.5} // You might want to add rating to your Product model
+                        reviews={Math.floor(Math.random() * 100) + 10} // Placeholder
+                        size={product.size}
+                        season={product.season as any}
+                        speedRating={product.speedRating}
+                        features={product.features || []}
+                        badge={product.isFeatured ? 'Featured' : undefined}
+                        badgeColor={product.isFeatured ? 'bg-orange-500' : undefined}
+                        category={product.category?.name || 'Passenger'}
+                        inStock={product.stockQuantity > 0}
+                        className={viewMode === 'list' ? 'flex' : ''}
+                        onAddToCart={() => {}} // Disabled for admin
+                        onViewDetails={() => handleViewProduct(product)}
+                        onToggleFavorite={() => {}} // Disabled for admin
+                      />
+                      
+                      {/* Admin Action Overlay */}
+                      <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-8 w-8 p-0 bg-white/90 hover:bg-white"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewProduct(product);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-8 w-8 p-0 bg-white/90 hover:bg-white"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(product);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-8 w-8 p-0 bg-white/90 hover:bg-white text-red-600 hover:text-red-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteProduct(product);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      
+                      {/* Stock Status Indicator */}
+                      <div className={`absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium ${
+                        product.stockQuantity > 0 
+                          ? product.stockQuantity <= (product.lowStockThreshold || 10)
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        Stock: {product.stockQuantity}
+                      </div>
+                      
+                      {/* Active Status Badge */}
+                      <div className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-medium ${
+                        product.isActive 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {product.isActive ? 'Active' : 'Inactive'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Table View */}
+              {viewMode === 'table' && (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Product</TableHead>
+                        <TableHead>SKU</TableHead>
+                        <TableHead>Price</TableHead>
+                        <TableHead>Stock</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Brand</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {products.map((product) => (
                         <TableRow key={product.id} className="hover:bg-gray-50">
                           <TableCell>
                             <div className="flex items-center space-x-3">
                               <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
-                                <Image
-                                  src={product.thumbnailImage}
-                                  alt={product.name}
-                                  width={48}
-                                  height={48}
-                                  className="object-cover"
-                                />
+                                {product.images && product.images.length > 0 ? (
+                                  <img
+                                    src={product.images[0]}
+                                    alt={product.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <Package className="w-6 h-6 text-gray-400" />
+                                )}
                               </div>
                               <div>
                                 <p className="font-medium text-gray-900">{product.name}</p>
-                                <p className="text-sm text-gray-500">SKU: {product.inventory.sku}</p>
+                                <p className="text-sm text-gray-500">{product.size}</p>
                               </div>
                             </div>
                           </TableCell>
+                          <TableCell className="font-mono text-sm">{product.sku}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">{product.brand}</Badge>
-                          </TableCell>
-                          <TableCell>{product.category}</TableCell>
-                          <TableCell>
-                            <div>
-                              <span className="font-medium">€{product.pricing.basePrice}</span>
-                              {product.pricing.salePrice && (
-                                <span className="text-sm text-gray-500 line-through ml-2">€{product.pricing.salePrice}</span>
+                            <div className="flex flex-col">
+                              <span className="font-medium">€{product.price}</span>
+                              {product.compareAtPrice && product.compareAtPrice > product.price && (
+                                <span className="text-sm text-gray-500 line-through">
+                                  €{product.compareAtPrice}
+                                </span>
                               )}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <span className={`font-medium ${stockStatus.color}`}>
-                              {product.inventory.availableQuantity}
+                            <span className={`font-medium ${
+                              product.stockQuantity === 0 
+                                ? 'text-red-600' 
+                                : product.stockQuantity <= (product.lowStockThreshold || 10)
+                                ? 'text-yellow-600' 
+                                : 'text-green-600'
+                            }`}>
+                              {product.stockQuantity}
                             </span>
                           </TableCell>
-                          <TableCell>{product.salesData.totalSold}</TableCell>
                           <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Badge className={`${getStatusColor(product.status)} border-0`}>
-                                {product.status.replace('-', ' ')}
-                              </Badge>
-                              {product.featured && <Star className="w-4 h-4 text-tire-orange" />}
-                            </div>
+                            <Badge className={`${
+                              product.isActive 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-800'
+                            } border-0`}>
+                              {product.isActive ? 'Active' : 'Inactive'}
+                            </Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center space-x-1">
-                              <span className="text-sm font-medium">{product.salesData.averageRating.toFixed(1)}</span>
-                              <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                              <span className="text-xs text-gray-500">({product.salesData.reviewCount})</span>
-                            </div>
+                            {product.brand?.name || 'N/A'}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end space-x-2">
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => handleViewProduct(product)}
-                              >
+                              <Button variant="ghost" size="sm" onClick={() => handleViewProduct(product)}>
                                 <Eye className="w-4 h-4" />
                               </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => handleEditProduct(product)}
-                              >
+                              <Button variant="ghost" size="sm" onClick={() => handleEdit(product)}>
                                 <Edit className="w-4 h-4" />
                               </Button>
                               <Button 
@@ -573,402 +766,1343 @@ const ProductsPage = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="grid"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-              >
-                {products.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
 
-          {products.length === 0 && !loading && (
-            <div className="text-center py-12">
-              <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
-              <p className="text-gray-600">Try adjusting your filters or add some products to get started.</p>
-            </div>
+              {/* Pagination */}
+              {pagination && pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6">
+                  <div className="text-sm text-gray-500">
+                    Showing {((pagination.page - 1) * pagination.limit) + 1} to{' '}
+                    {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
+                    {pagination.total} products
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(pagination.page - 1)}
+                      disabled={pagination.page <= 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(pagination.page + 1)}
+                      disabled={pagination.page >= pagination.totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {products.length === 0 && (
+                <div className="text-center py-12">
+                  <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
+                  <p className="text-gray-600">Try adjusting your filters or add some products to get started.</p>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
 
-      {/* Add Product Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] max-h-[95vh] overflow-hidden p-0 sm:w-[90vw] sm:max-w-[90vw] sm:h-[90vh] sm:max-h-[90vh]">
-          <DialogHeader className="p-4 sm:p-6 pb-0 border-b">
-            <DialogTitle className="text-xl sm:text-2xl">Add New Product</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-            <ProductForm
-              onSave={handleSaveProduct}
-              onCancel={() => setIsAddDialogOpen(false)}
-            />
+      {/* Multi-Step Add Product Modal */}
+      <Modal open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <ModalContent className="w-full h-full overflow-hidden p-0">
+          <div className="flex flex-col h-full">
+            <ModalHeader className="pb-4 px-6 pt-6">
+              <ModalTitle className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="text-lg sm:text-xl font-semibold">Add New Product</span>
+                {isFormDirty && (
+                  <Badge variant="outline" className="text-xs w-fit">
+                    <Save className="w-3 h-3 mr-1" />
+                    Auto-saved
+                  </Badge>
+                )}
+              </ModalTitle>
+            </ModalHeader>
+          
+          {/* Progress Indicator */}
+          <div className="space-y-4 px-6">
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span className="font-medium">Step {currentStep} of {totalSteps}</span>
+              <span className="font-medium">{Math.round((currentStep / totalSteps) * 100)}% Complete</span>
+            </div>
+            <Progress value={(currentStep / totalSteps) * 100} className="h-3" />
+            
+            {/* Step Navigation */}
+            <div className="flex items-center justify-center space-x-1 overflow-x-auto pb-2">
+              {Array.from({ length: totalSteps }, (_, i) => i + 1).map((step) => (
+                <Button
+                  key={step}
+                  variant={currentStep === step ? "default" : currentStep > step ? "secondary" : "outline"}
+                  size="lg"
+                  className="min-w-[100px] sm:min-w-[140px] px-4 sm:px-6 py-3 text-sm sm:text-base font-medium whitespace-nowrap"
+                  onClick={() => goToStep(step)}
+                >
+                  <span className="sm:hidden">{step}</span>
+                  <span className="hidden sm:inline">{step}. {getStepTitle(step)}</span>
+                </Button>
+              ))}
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* Edit Product Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] max-h-[95vh] overflow-hidden p-0 sm:w-[90vw] sm:max-w-[90vw] sm:h-[90vh] sm:max-h-[90vh]">
-          <DialogHeader className="p-4 sm:p-6 pb-0 border-b">
-            <DialogTitle className="text-xl sm:text-2xl">Edit Product</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-            {selectedProduct && (
-              <ProductForm
-                product={selectedProduct}
-                onSave={handleSaveProduct}
-                onCancel={() => setIsEditDialogOpen(false)}
-              />
+          {/* Form Content */}
+          <div className="flex-1 overflow-y-auto px-6" style={{ maxHeight: 'calc(100vh - 250px)' }}>
+            <div className="space-y-8 pb-8">
+            {/* Step 1: Basic Information */}
+            {currentStep === 1 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Basic Information</CardTitle>
+                  <p className="text-sm text-muted-foreground">Enter the essential product details</p>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Product Name *</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => handleFormDataChange({ name: e.target.value })}
+                        placeholder="Michelin Pilot Sport 4"
+                        required
+                        className="text-base"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sku">SKU *</Label>
+                      <Input
+                        id="sku"
+                        value={formData.sku}
+                        onChange={(e) => handleFormDataChange({ sku: e.target.value })}
+                        placeholder="MICH-PS4-225-45-17"
+                        required
+                        className="text-base"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => handleFormDataChange({ description: e.target.value })}
+                      placeholder="Detailed product description..."
+                      rows={4}
+                      className="text-base resize-none"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="shortDescription">Short Description</Label>
+                    <Textarea
+                      id="shortDescription"
+                      value={formData.shortDescription}
+                      onChange={(e) => handleFormDataChange({ shortDescription: e.target.value })}
+                      placeholder="Brief product summary for listings"
+                      rows={2}
+                      className="text-base resize-none"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="category">Category *</Label>
+                      <Select 
+                        value={formData.categoryId} 
+                        onValueChange={(value) => handleFormDataChange({ categoryId: value })}
+                      >
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categoriesLoading ? (
+                            <SelectItem value="loading-categories" disabled>Loading categories...</SelectItem>
+                          ) : (
+                            categories.map((category) => (
+                              <SelectItem key={category.id} value={category.id}>
+                                {category.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="brand">Brand *</Label>
+                      <Select 
+                        value={formData.brandId} 
+                        onValueChange={(value) => handleFormDataChange({ brandId: value })}
+                      >
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select a brand" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {brandsLoading ? (
+                            <SelectItem value="loading-brands" disabled>Loading brands...</SelectItem>
+                          ) : (
+                            brands.map((brand) => (
+                              <SelectItem key={brand.id} value={brand.id}>
+                                {brand.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pt-4 border-t">
+                    <div className="flex items-center space-x-3">
+                      <Switch
+                        id="isActive"
+                        checked={formData.isActive}
+                        onCheckedChange={(checked) => handleFormDataChange({ isActive: checked })}
+                      />
+                      <Label htmlFor="isActive" className="text-base font-medium">Active Product</Label>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <Switch
+                        id="isFeatured"
+                        checked={formData.isFeatured}
+                        onCheckedChange={(checked) => handleFormDataChange({ isFeatured: checked })}
+                      />
+                      <Label htmlFor="isFeatured" className="text-base font-medium">Featured Product</Label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             )}
+
+            {/* Step 2: Pricing & Inventory */}
+            {currentStep === 2 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pricing & Inventory</CardTitle>
+                  <p className="text-sm text-muted-foreground">Set pricing and manage inventory</p>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="price">Price (€) *</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        step="0.01"
+                        value={formData.price}
+                        onChange={(e) => handleFormDataChange({ price: parseFloat(e.target.value) || 0 })}
+                        placeholder="150.00"
+                        required
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="compareAtPrice">Compare At Price (€)</Label>
+                      <Input
+                        id="compareAtPrice"
+                        type="number"
+                        step="0.01"
+                        value={formData.compareAtPrice}
+                        onChange={(e) => handleFormDataChange({ compareAtPrice: parseFloat(e.target.value) || 0 })}
+                        placeholder="180.00"
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cost">Cost (€)</Label>
+                      <Input
+                        id="cost"
+                        type="number"
+                        step="0.01"
+                        value={formData.cost}
+                        onChange={(e) => handleFormDataChange({ cost: parseFloat(e.target.value) || 0 })}
+                        placeholder="120.00"
+                        className="text-base h-11"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="stockQuantity">Stock Quantity *</Label>
+                      <Input
+                        id="stockQuantity"
+                        type="number"
+                        value={formData.stockQuantity}
+                        onChange={(e) => handleFormDataChange({ stockQuantity: parseInt(e.target.value) || 0 })}
+                        placeholder="100"
+                        required
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lowStockThreshold">Low Stock Threshold</Label>
+                      <Input
+                        id="lowStockThreshold"
+                        type="number"
+                        value={formData.lowStockThreshold}
+                        onChange={(e) => handleFormDataChange({ lowStockThreshold: parseInt(e.target.value) || 10 })}
+                        placeholder="10"
+                        className="text-base h-11"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3 pt-4 border-t">
+                    <Switch
+                      id="trackQuantity"
+                      checked={formData.trackQuantity}
+                      onCheckedChange={(checked) => handleFormDataChange({ trackQuantity: checked })}
+                    />
+                    <Label htmlFor="trackQuantity" className="text-base font-medium">Track Quantity</Label>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 3: Tire Specifications */}
+            {currentStep === 3 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tire Specifications</CardTitle>
+                  <p className="text-sm text-muted-foreground">Enter tire-specific details and ratings</p>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="size">Size</Label>
+                      <Input
+                        id="size"
+                        value={formData.size}
+                        onChange={(e) => handleFormDataChange({ size: e.target.value })}
+                        placeholder="225/45R17"
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="width">Width (mm)</Label>
+                      <Input
+                        id="width"
+                        type="number"
+                        value={formData.width}
+                        onChange={(e) => handleFormDataChange({ width: parseInt(e.target.value) || 0 })}
+                        placeholder="225"
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="aspectRatio">Aspect Ratio</Label>
+                      <Input
+                        id="aspectRatio"
+                        type="number"
+                        value={formData.aspectRatio}
+                        onChange={(e) => handleFormDataChange({ aspectRatio: parseInt(e.target.value) || 0 })}
+                        placeholder="45"
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="rimDiameter">Rim Diameter</Label>
+                      <Input
+                        id="rimDiameter"
+                        type="number"
+                        value={formData.rimDiameter}
+                        onChange={(e) => handleFormDataChange({ rimDiameter: parseInt(e.target.value) || 0 })}
+                        placeholder="17"
+                        className="text-base h-11"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="season">Season</Label>
+                      <Select value={formData.season} onValueChange={(value) => handleFormDataChange({ season: value })}>
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select season" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="summer">Summer</SelectItem>
+                          <SelectItem value="winter">Winter</SelectItem>
+                          <SelectItem value="all-season">All Season</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="tireType">Tire Type</Label>
+                      <Select value={formData.tireType} onValueChange={(value) => handleFormDataChange({ tireType: value })}>
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="performance">Performance</SelectItem>
+                          <SelectItem value="touring">Touring</SelectItem>
+                          <SelectItem value="comfort">Comfort</SelectItem>
+                          <SelectItem value="sport">Sport</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="speedRating">Speed Rating</Label>
+                      <Select value={formData.speedRating} onValueChange={(value) => handleFormDataChange({ speedRating: value })}>
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select rating" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="H">H (210 km/h)</SelectItem>
+                          <SelectItem value="V">V (240 km/h)</SelectItem>
+                          <SelectItem value="W">W (270 km/h)</SelectItem>
+                          <SelectItem value="Y">Y (300 km/h)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="loadIndex">Load Index</Label>
+                      <Input
+                        id="loadIndex"
+                        type="number"
+                        value={formData.loadIndex}
+                        onChange={(e) => handleFormDataChange({ loadIndex: parseInt(e.target.value) || 0 })}
+                        placeholder="91"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="fuelEfficiency">Fuel Efficiency</Label>
+                      <Select value={formData.fuelEfficiency} onValueChange={(value) => handleFormDataChange({ fuelEfficiency: value })}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select rating" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="A">A (Best)</SelectItem>
+                          <SelectItem value="B">B</SelectItem>
+                          <SelectItem value="C">C</SelectItem>
+                          <SelectItem value="D">D</SelectItem>
+                          <SelectItem value="E">E</SelectItem>
+                          <SelectItem value="F">F</SelectItem>
+                          <SelectItem value="G">G (Worst)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="wetGrip">Wet Grip</Label>
+                      <Select value={formData.wetGrip} onValueChange={(value) => handleFormDataChange({ wetGrip: value })}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select rating" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="A">A (Best)</SelectItem>
+                          <SelectItem value="B">B</SelectItem>
+                          <SelectItem value="C">C</SelectItem>
+                          <SelectItem value="D">D</SelectItem>
+                          <SelectItem value="E">E</SelectItem>
+                          <SelectItem value="F">F</SelectItem>
+                          <SelectItem value="G">G (Worst)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="noiseLevel">Noise Level (dB)</Label>
+                      <Input
+                        id="noiseLevel"
+                        type="number"
+                        value={formData.noiseLevel}
+                        onChange={(e) => handleFormDataChange({ noiseLevel: parseInt(e.target.value) || 0 })}
+                        placeholder="72"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2 pt-6">
+                      <Switch
+                        id="runFlat"
+                        checked={formData.runFlat}
+                        onCheckedChange={(checked) => handleFormDataChange({ runFlat: checked })}
+                      />
+                      <Label htmlFor="runFlat">Run Flat Tire</Label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 4: Physical Properties */}
+            {currentStep === 4 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Physical Properties</CardTitle>
+                  <p className="text-sm text-muted-foreground">Physical characteristics and measurements</p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="weight">Weight (kg)</Label>
+                    <Input
+                      id="weight"
+                      type="number"
+                      step="0.1"
+                      value={formData.weight}
+                      onChange={(e) => handleFormDataChange({ weight: parseFloat(e.target.value) || 0 })}
+                      placeholder="10.5"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Features</Label>
+                    <Textarea
+                      placeholder="Enter features separated by commas (e.g., All-weather grip, Low rolling resistance, Enhanced durability)"
+                      rows={3}
+                      value={Array.isArray(formData.features) ? formData.features.join(', ') : ''}
+                      onChange={(e) => {
+                        const featuresArray = e.target.value.split(',').map(f => f.trim()).filter(f => f.length > 0);
+                        handleFormDataChange({ features: featuresArray });
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 5: Product Images */}
+            {currentStep === 5 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Product Images</CardTitle>
+                  <p className="text-sm text-muted-foreground">Upload high-quality product images</p>
+                </CardHeader>
+                <CardContent>
+                  <ImageUpload
+                    onImagesChange={(images) => {
+                      setUploadedImages(images);
+                      // Extract URLs from successfully uploaded images
+                      const imageUrls = images
+                        .filter((img): img is UploadedImage & { uploadResult: { success: true; url: string } } => 
+                          img.uploadResult?.success === true && typeof img.uploadResult.url === 'string'
+                        )
+                        .map(img => img.uploadResult.url);
+                      handleFormDataChange({ images: imageUrls });
+                    }}
+                    existingImages={formData.images}
+                    maxFiles={8}
+                    uploadType="product"
+                    title="Upload Product Images"
+                    description="Add high-quality images to showcase your tire products"
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 6: SEO & Meta Information */}
+            {currentStep === 6 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>SEO & Meta Information</CardTitle>
+                  <p className="text-sm text-muted-foreground">Optimize for search engines</p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="metaTitle">Meta Title</Label>
+                    <Input
+                      id="metaTitle"
+                      value={formData.metaTitle}
+                      onChange={(e) => handleFormDataChange({ metaTitle: e.target.value })}
+                      placeholder="SEO title for search engines"
+                      maxLength={60}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.metaTitle?.length || 0}/60 characters
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="metaDescription">Meta Description</Label>
+                    <Textarea
+                      id="metaDescription"
+                      value={formData.metaDescription}
+                      onChange={(e) => handleFormDataChange({ metaDescription: e.target.value })}
+                      placeholder="SEO description for search engines"
+                      rows={3}
+                      maxLength={160}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.metaDescription?.length || 0}/160 characters
+                    </p>
+                  </div>
+                  
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <h4 className="font-medium text-blue-900 mb-2">SEO Preview</h4>
+                    <div className="space-y-1">
+                      <div className="text-blue-600 text-lg font-medium">
+                        {formData.metaTitle || formData.name || 'Product Title'}
+                      </div>
+                      <div className="text-green-600 text-sm">
+                        bandencentrale.com/products/{formData.sku?.toLowerCase().replace(/\s+/g, '-') || 'product-sku'}
+                      </div>
+                      <div className="text-gray-600 text-sm">
+                        {formData.metaDescription || formData.shortDescription || 'Product description will appear here...'}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            </div>
+
+            {/* Navigation Buttons */}
+            <div className="flex flex-col sm:flex-row justify-between gap-4 pt-6 border-t bg-white px-6 pb-6">
+              <Button
+                variant="outline"
+                onClick={prevStep}
+                disabled={currentStep === 1}
+                className="flex items-center min-w-[140px] h-12 text-base"
+              >
+                <ChevronLeft className="w-5 h-5 mr-2" />
+                Previous
+              </Button>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsAddDialogOpen(false)}
+                  className="min-w-[120px] h-12 text-base"
+                >
+                  Cancel
+                </Button>
+                
+                {currentStep === totalSteps ? (
+                  <Button 
+                    onClick={handleCreateProduct}
+                    disabled={createProductMutation.isPending || !canProceedToNextStep}
+                    className="flex items-center min-w-[160px] h-12 text-base"
+                  >
+                    {createProductMutation.isPending && <Loader2 className="w-5 h-5 mr-2 animate-spin" />}
+                    Create Product
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={nextStep}
+                    disabled={!canProceedToNextStep}
+                    className="flex items-center min-w-[120px] h-12 text-base"
+                  >
+                    Next
+                    <ChevronRight className="w-5 h-5 ml-2" />
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </ModalContent>
+      </Modal>
+            
+
+      {/* Edit Product Modal */}
+      <Modal open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <ModalContent className="w-full h-full overflow-hidden p-0">
+          <div className="flex flex-col h-full">
+            <ModalHeader className="pb-4 px-6 pt-6">
+              <ModalTitle className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="text-lg sm:text-xl font-semibold">Edit Product</span>
+                {editingProduct && (
+                  <Badge variant="secondary" className="text-xs w-fit">
+                    {editingProduct.name}
+                  </Badge>
+                )}
+              </ModalTitle>
+            </ModalHeader>
+          
+          {/* Progress Indicator */}
+          <div className="space-y-4 px-6">
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span className="font-medium">Step {editCurrentStep} of {totalSteps}</span>
+              <span className="font-medium">{Math.round((editCurrentStep / totalSteps) * 100)}% Complete</span>
+            </div>
+            <Progress value={(editCurrentStep / totalSteps) * 100} className="h-3" />
+            
+            {/* Step Navigation */}
+            <div className="flex items-center justify-center space-x-1 overflow-x-auto pb-2">
+              {Array.from({ length: totalSteps }, (_, i) => i + 1).map((step) => (
+                <Button
+                  key={step}
+                  variant={editCurrentStep === step ? "default" : editCurrentStep > step ? "secondary" : "outline"}
+                  size="lg"
+                  className="min-w-[100px] sm:min-w-[140px] px-4 sm:px-6 py-3 text-sm sm:text-base font-medium whitespace-nowrap"
+                  onClick={() => editGoToStep(step)}
+                >
+                  <span className="sm:hidden">{step}</span>
+                  <span className="hidden sm:inline">{step}. {getStepTitle(step)}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Form Content */}
+          <div className="flex-1 overflow-y-auto px-6" style={{ maxHeight: 'calc(100vh - 250px)' }}>
+            <div className="space-y-8 pb-8">
+            {/* Step 1: Basic Information */}
+            {editCurrentStep === 1 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Basic Information</CardTitle>
+                  <p className="text-sm text-muted-foreground">Enter the essential product details</p>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="editName">Product Name *</Label>
+                      <Input
+                        id="editName"
+                        value={formData.name}
+                        onChange={(e) => handleFormDataChange({ name: e.target.value })}
+                        placeholder="Michelin Pilot Sport 4"
+                        required
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editSku">SKU *</Label>
+                      <Input
+                        id="editSku"
+                        value={formData.sku}
+                        onChange={(e) => handleFormDataChange({ sku: e.target.value })}
+                        placeholder="MICH-PS4-225-45-17"
+                        required
+                        className="text-base h-11"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="editDescription">Description</Label>
+                    <Textarea
+                      id="editDescription"
+                      value={formData.description}
+                      onChange={(e) => handleFormDataChange({ description: e.target.value })}
+                      placeholder="Detailed product description..."
+                      rows={4}
+                      className="text-base resize-none"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="editShortDescription">Short Description</Label>
+                    <Textarea
+                      id="editShortDescription"
+                      value={formData.shortDescription}
+                      onChange={(e) => handleFormDataChange({ shortDescription: e.target.value })}
+                      placeholder="Brief product summary for listings"
+                      rows={2}
+                      className="text-base resize-none"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="editCategory">Category *</Label>
+                      <Select 
+                        value={formData.categoryId} 
+                        onValueChange={(value) => handleFormDataChange({ categoryId: value })}
+                      >
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categoriesLoading ? (
+                            <SelectItem value="loading-categories-edit" disabled>Loading categories...</SelectItem>
+                          ) : (
+                            categories.map((category) => (
+                              <SelectItem key={category.id} value={category.id}>
+                                {category.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="editBrand">Brand *</Label>
+                      <Select 
+                        value={formData.brandId} 
+                        onValueChange={(value) => handleFormDataChange({ brandId: value })}
+                      >
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select a brand" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {brandsLoading ? (
+                            <SelectItem value="loading-brands-edit" disabled>Loading brands...</SelectItem>
+                          ) : (
+                            brands.map((brand) => (
+                              <SelectItem key={brand.id} value={brand.id}>
+                                {brand.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pt-4 border-t">
+                    <div className="flex items-center space-x-3">
+                      <Switch
+                        id="editIsActive"
+                        checked={formData.isActive}
+                        onCheckedChange={(checked) => handleFormDataChange({ isActive: checked })}
+                      />
+                      <Label htmlFor="editIsActive" className="text-base font-medium">Active Product</Label>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <Switch
+                        id="editIsFeatured"
+                        checked={formData.isFeatured}
+                        onCheckedChange={(checked) => handleFormDataChange({ isFeatured: checked })}
+                      />
+                      <Label htmlFor="editIsFeatured" className="text-base font-medium">Featured Product</Label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 2: Pricing & Inventory */}
+            {editCurrentStep === 2 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pricing & Inventory</CardTitle>
+                  <p className="text-sm text-muted-foreground">Set pricing and manage inventory</p>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="editPrice">Price (€) *</Label>
+                      <Input
+                        id="editPrice"
+                        type="number"
+                        step="0.01"
+                        value={formData.price}
+                        onChange={(e) => handleFormDataChange({ price: parseFloat(e.target.value) || 0 })}
+                        placeholder="150.00"
+                        required
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editCompareAtPrice">Compare At Price (€)</Label>
+                      <Input
+                        id="editCompareAtPrice"
+                        type="number"
+                        step="0.01"
+                        value={formData.compareAtPrice}
+                        onChange={(e) => handleFormDataChange({ compareAtPrice: parseFloat(e.target.value) || 0 })}
+                        placeholder="180.00"
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editCost">Cost (€)</Label>
+                      <Input
+                        id="editCost"
+                        type="number"
+                        step="0.01"
+                        value={formData.cost}
+                        onChange={(e) => handleFormDataChange({ cost: parseFloat(e.target.value) || 0 })}
+                        placeholder="120.00"
+                        className="text-base h-11"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="editStockQuantity">Stock Quantity *</Label>
+                      <Input
+                        id="editStockQuantity"
+                        type="number"
+                        value={formData.stockQuantity}
+                        onChange={(e) => handleFormDataChange({ stockQuantity: parseInt(e.target.value) || 0 })}
+                        placeholder="100"
+                        required
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editLowStockThreshold">Low Stock Threshold</Label>
+                      <Input
+                        id="editLowStockThreshold"
+                        type="number"
+                        value={formData.lowStockThreshold}
+                        onChange={(e) => handleFormDataChange({ lowStockThreshold: parseInt(e.target.value) || 10 })}
+                        placeholder="10"
+                        className="text-base h-11"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3 pt-4 border-t">
+                    <Switch
+                      id="editTrackQuantity"
+                      checked={formData.trackQuantity}
+                      onCheckedChange={(checked) => handleFormDataChange({ trackQuantity: checked })}
+                    />
+                    <Label htmlFor="editTrackQuantity" className="text-base font-medium">Track Quantity</Label>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 3: Tire Specifications */}
+            {editCurrentStep === 3 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tire Specifications</CardTitle>
+                  <p className="text-sm text-muted-foreground">Enter tire-specific details and ratings</p>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="editSize">Size</Label>
+                      <Input
+                        id="editSize"
+                        value={formData.size}
+                        onChange={(e) => handleFormDataChange({ size: e.target.value })}
+                        placeholder="225/45R17"
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editWidth">Width (mm)</Label>
+                      <Input
+                        id="editWidth"
+                        type="number"
+                        value={formData.width}
+                        onChange={(e) => handleFormDataChange({ width: parseInt(e.target.value) || 0 })}
+                        placeholder="225"
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editAspectRatio">Aspect Ratio</Label>
+                      <Input
+                        id="editAspectRatio"
+                        type="number"
+                        value={formData.aspectRatio}
+                        onChange={(e) => handleFormDataChange({ aspectRatio: parseInt(e.target.value) || 0 })}
+                        placeholder="45"
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editRimDiameter">Rim Diameter</Label>
+                      <Input
+                        id="editRimDiameter"
+                        type="number"
+                        value={formData.rimDiameter}
+                        onChange={(e) => handleFormDataChange({ rimDiameter: parseInt(e.target.value) || 0 })}
+                        placeholder="17"
+                        className="text-base h-11"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="editSeason">Season</Label>
+                      <Select value={formData.season} onValueChange={(value) => handleFormDataChange({ season: value })}>
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select season" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="summer">Summer</SelectItem>
+                          <SelectItem value="winter">Winter</SelectItem>
+                          <SelectItem value="all-season">All Season</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editTireType">Tire Type</Label>
+                      <Select value={formData.tireType} onValueChange={(value) => handleFormDataChange({ tireType: value })}>
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="performance">Performance</SelectItem>
+                          <SelectItem value="touring">Touring</SelectItem>
+                          <SelectItem value="comfort">Comfort</SelectItem>
+                          <SelectItem value="sport">Sport</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editSpeedRating">Speed Rating</Label>
+                      <Select value={formData.speedRating} onValueChange={(value) => handleFormDataChange({ speedRating: value })}>
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select rating" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="H">H (210 km/h)</SelectItem>
+                          <SelectItem value="V">V (240 km/h)</SelectItem>
+                          <SelectItem value="W">W (270 km/h)</SelectItem>
+                          <SelectItem value="Y">Y (300 km/h)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="editLoadIndex">Load Index</Label>
+                      <Input
+                        id="editLoadIndex"
+                        type="number"
+                        value={formData.loadIndex}
+                        onChange={(e) => handleFormDataChange({ loadIndex: parseInt(e.target.value) || 0 })}
+                        placeholder="91"
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editFuelEfficiency">Fuel Efficiency</Label>
+                      <Select value={formData.fuelEfficiency} onValueChange={(value) => handleFormDataChange({ fuelEfficiency: value })}>
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select rating" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="A">A (Best)</SelectItem>
+                          <SelectItem value="B">B</SelectItem>
+                          <SelectItem value="C">C</SelectItem>
+                          <SelectItem value="D">D</SelectItem>
+                          <SelectItem value="E">E</SelectItem>
+                          <SelectItem value="F">F</SelectItem>
+                          <SelectItem value="G">G (Worst)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editWetGrip">Wet Grip</Label>
+                      <Select value={formData.wetGrip} onValueChange={(value) => handleFormDataChange({ wetGrip: value })}>
+                        <SelectTrigger className="text-base h-11">
+                          <SelectValue placeholder="Select rating" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="A">A (Best)</SelectItem>
+                          <SelectItem value="B">B</SelectItem>
+                          <SelectItem value="C">C</SelectItem>
+                          <SelectItem value="D">D</SelectItem>
+                          <SelectItem value="E">E</SelectItem>
+                          <SelectItem value="F">F</SelectItem>
+                          <SelectItem value="G">G (Worst)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="editNoiseLevel">Noise Level (dB)</Label>
+                      <Input
+                        id="editNoiseLevel"
+                        type="number"
+                        value={formData.noiseLevel}
+                        onChange={(e) => handleFormDataChange({ noiseLevel: parseInt(e.target.value) || 0 })}
+                        placeholder="72"
+                        className="text-base h-11"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-3 pt-6">
+                      <Switch
+                        id="editRunFlat"
+                        checked={formData.runFlat}
+                        onCheckedChange={(checked) => handleFormDataChange({ runFlat: checked })}
+                      />
+                      <Label htmlFor="editRunFlat" className="text-base font-medium">Run Flat Tire</Label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 4: Physical Properties */}
+            {editCurrentStep === 4 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Physical Properties</CardTitle>
+                  <p className="text-sm text-muted-foreground">Physical characteristics and measurements</p>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="editWeight">Weight (kg)</Label>
+                    <Input
+                      id="editWeight"
+                      type="number"
+                      step="0.1"
+                      value={formData.weight}
+                      onChange={(e) => handleFormDataChange({ weight: parseFloat(e.target.value) || 0 })}
+                      placeholder="10.5"
+                      className="text-base h-11"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Features</Label>
+                    <Textarea
+                      placeholder="Enter features separated by commas (e.g., All-weather grip, Low rolling resistance, Enhanced durability)"
+                      rows={3}
+                      value={Array.isArray(formData.features) ? formData.features.join(', ') : ''}
+                      onChange={(e) => {
+                        const featuresArray = e.target.value.split(',').map(f => f.trim()).filter(f => f.length > 0);
+                        handleFormDataChange({ features: featuresArray });
+                      }}
+                      className="text-base resize-none"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 5: Product Images */}
+            {editCurrentStep === 5 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Product Images</CardTitle>
+                  <p className="text-sm text-muted-foreground">Manage product images</p>
+                </CardHeader>
+                <CardContent>
+                  <ImageUpload
+                    onImagesChange={(images) => {
+                      setUploadedImages(images);
+                      // Extract URLs from successfully uploaded images
+                      const imageUrls = images
+                        .filter((img): img is UploadedImage & { uploadResult: { success: true; url: string } } => 
+                          img.uploadResult?.success === true && typeof img.uploadResult.url === 'string'
+                        )
+                        .map(img => img.uploadResult.url);
+                      // Combine existing images with new uploads
+                      const existingUrls = editingProduct?.images || [];
+                      handleFormDataChange({ images: [...existingUrls, ...imageUrls] });
+                    }}
+                    existingImages={editingProduct?.images || []}
+                    maxFiles={8}
+                    uploadType="product"
+                    title="Update Product Images"
+                    description="Add new images or manage existing product images"
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 6: SEO & Meta Information */}
+            {editCurrentStep === 6 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>SEO & Meta Information</CardTitle>
+                  <p className="text-sm text-muted-foreground">Optimize for search engines</p>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="editMetaTitle">Meta Title</Label>
+                    <Input
+                      id="editMetaTitle"
+                      value={formData.metaTitle}
+                      onChange={(e) => handleFormDataChange({ metaTitle: e.target.value })}
+                      placeholder="SEO title for search engines"
+                      maxLength={60}
+                      className="text-base h-11"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.metaTitle?.length || 0}/60 characters
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="editMetaDescription">Meta Description</Label>
+                    <Textarea
+                      id="editMetaDescription"
+                      value={formData.metaDescription}
+                      onChange={(e) => handleFormDataChange({ metaDescription: e.target.value })}
+                      placeholder="SEO description for search engines"
+                      rows={3}
+                      maxLength={160}
+                      className="text-base resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.metaDescription?.length || 0}/160 characters
+                    </p>
+                  </div>
+                  
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <h4 className="font-medium text-blue-900 mb-2">SEO Preview</h4>
+                    <div className="space-y-1">
+                      <div className="text-blue-600 text-lg font-medium">
+                        {formData.metaTitle || formData.name || 'Product Title'}
+                      </div>
+                      <div className="text-green-600 text-sm">
+                        bandencentrale.com/products/{formData.sku?.toLowerCase().replace(/\s+/g, '-') || 'product-sku'}
+                      </div>
+                      <div className="text-gray-600 text-sm">
+                        {formData.metaDescription || formData.shortDescription || 'Product description will appear here...'}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Additional steps 3-6 would be duplicated here with edit prefixes */}
+            {editCurrentStep > 6 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{getStepTitle(editCurrentStep)}</CardTitle>
+                  <p className="text-sm text-muted-foreground">This step will be implemented with the same structure as the add form</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>Step {editCurrentStep} content will be added here</p>
+                    <p className="text-xs mt-2">For now, you can navigate between steps to see the structure</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            </div>
+
+            {/* Navigation Buttons */}
+            <div className="flex flex-col sm:flex-row justify-between gap-4 pt-6 border-t bg-white px-6 pb-6">
+              <Button
+                variant="outline"
+                onClick={editPrevStep}
+                disabled={editCurrentStep === 1}
+                className="flex items-center min-w-[140px] h-12 text-base"
+              >
+                <ChevronLeft className="w-5 h-5 mr-2" />
+                Previous
+              </Button>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsEditDialogOpen(false)}
+                  className="min-w-[120px] h-12 text-base"
+                >
+                  Cancel
+                </Button>
+                
+                {editCurrentStep === totalSteps ? (
+                  <Button 
+                    onClick={handleUpdateProduct}
+                    disabled={updateProductMutation.isPending || !validateStep(editCurrentStep)}
+                    className="flex items-center min-w-[160px] h-12 text-base"
+                  >
+                    {updateProductMutation.isPending && <Loader2 className="w-5 h-5 mr-2 animate-spin" />}
+                    Update Product
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={editNextStep}
+                    disabled={!validateStep(editCurrentStep)}
+                    className="flex items-center min-w-[120px] h-12 text-base"
+                  >
+                    Next
+                    <ChevronRight className="w-5 h-5 ml-2" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+          </div>
+        </ModalContent>
+      </Modal>
 
       {/* View Product Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-[95vw] h-[90vh] max-h-[90vh] overflow-hidden p-0 sm:w-[85vw] sm:max-w-[85vw] sm:h-[85vh] sm:max-h-[85vh]">
-          <DialogHeader className="p-4 sm:p-6 pb-0 border-b">
-            <DialogTitle className="text-xl sm:text-2xl">Product Details</DialogTitle>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Product Details</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-            {selectedProduct && (
-              <div className="space-y-6 sm:space-y-8">
-                {/* Product Overview */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-                  <div className="space-y-4 sm:space-y-6">
-                    {/* Main Image Display */}
-                    <div className="relative group">
-                      <div className="aspect-square relative overflow-hidden rounded-lg bg-gray-100">
-                        <Image
-                          src={selectedProduct.images[currentImageIndex] || selectedProduct.thumbnailImage}
-                          alt={selectedProduct.name}
-                          fill
-                          className="object-cover transition-all duration-300"
-                        />
-                        
-                        {/* Navigation Arrows */}
-                        {selectedProduct.images.length > 1 && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-black/70"
-                              onClick={previousImage}
-                              disabled={currentImageIndex === 0}
-                            >
-                              <ChevronLeft className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-black/70"
-                              onClick={nextImage}
-                              disabled={currentImageIndex === selectedProduct.images.length - 1}
-                            >
-                              <ChevronRight className="w-4 h-4" />
-                            </Button>
-                          </>
-                        )}
-                        
-                        {/* Fullscreen Button */}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="absolute top-2 right-2 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-black/70"
-                          onClick={toggleFullscreen}
-                        >
-                          <Maximize2 className="w-4 h-4" />
-                        </Button>
-                        
-                        {/* Image Counter */}
-                        {selectedProduct.images.length > 1 && (
-                          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                            {currentImageIndex + 1} / {selectedProduct.images.length}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Image Thumbnails */}
-                    {selectedProduct.images.length > 1 && (
-                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                        {selectedProduct.images.map((image, index) => (
-                          <button
-                            key={index}
-                            onClick={() => selectImage(index)}
-                            className={`aspect-square relative overflow-hidden rounded-lg bg-gray-100 border-2 transition-all duration-200 ${
-                              currentImageIndex === index 
-                                ? 'border-tire-orange shadow-md' 
-                                : 'border-transparent hover:border-gray-300'
-                            }`}
-                          >
-                            <Image
-                              src={image}
-                              alt={`Product image ${index + 1}`}
-                              fill
-                              className="object-cover"
-                            />
-                            {currentImageIndex === index && (
-                              <div className="absolute inset-0 bg-tire-orange/20"></div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
+          {selectedProduct && (
+            <div className="space-y-6">
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                  {selectedProduct.images && selectedProduct.images.length > 0 ? (
+                    <Image
+                      src={selectedProduct.images[0]}
+                      alt={selectedProduct.name}
+                      width={64}
+                      height={64}
+                      className="object-cover"
+                    />
+                  ) : (
+                    <Package className="w-8 h-8 text-gray-400" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold">{selectedProduct.name}</h3>
+                  <p className="text-gray-600">{selectedProduct.sku}</p>
+                  <div className="flex items-center space-x-2 mt-2">
+                    <Badge className={getStatusColor(selectedProduct.isActive)}>
+                      {selectedProduct.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                    {selectedProduct.isFeatured && (
+                      <Badge variant="outline">Featured</Badge>
                     )}
                   </div>
-                  
-                  <div className="space-y-6">
-                    <div>
-                      <h2 className="text-3xl font-bold text-gray-900">{selectedProduct.name}</h2>
-                      <p className="text-lg text-gray-600 mt-2">{selectedProduct.shortDescription}</p>
-                    </div>
-                    
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Badge variant="outline" className="text-sm px-3 py-1">{selectedProduct.brand}</Badge>
-                      <Badge variant="outline" className="text-sm px-3 py-1">{selectedProduct.category}</Badge>
-                      <Badge className={`${getStatusColor(selectedProduct.status)} text-sm px-3 py-1`}>
-                        {selectedProduct.status.replace('-', ' ')}
-                      </Badge>
-                    </div>
-                    
-                    <div className="bg-gray-50 p-6 rounded-lg space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 font-medium">Price:</span>
-                          <span className="font-bold text-lg">€{selectedProduct.pricing.basePrice}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 font-medium">Stock:</span>
-                          <span className={`font-bold text-lg ${getStockStatus(selectedProduct).color}`}>
-                            {selectedProduct.inventory.availableQuantity} units
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 font-medium">Sales:</span>
-                          <span className="font-bold text-lg">{selectedProduct.salesData.totalSold} sold</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 font-medium">Rating:</span>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-bold text-lg">{selectedProduct.salesData.averageRating.toFixed(1)}</span>
-                            <Star className="w-5 h-5 text-yellow-400 fill-current" />
-                            <span className="text-sm text-gray-500">({selectedProduct.salesData.reviewCount})</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <h3 className="text-lg font-semibold text-gray-900">Description</h3>
-                      <p className="text-gray-600 leading-relaxed">{selectedProduct.description}</p>
-                    </div>
-                  </div>
                 </div>
-                
-                {/* Detailed Information */}
-                <Tabs defaultValue="specs" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="specs" className="text-base">Specifications</TabsTrigger>
-                    <TabsTrigger value="inventory" className="text-base">Inventory</TabsTrigger>
-                    <TabsTrigger value="sales" className="text-base">Sales Data</TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="specs" className="space-y-6 mt-6">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Size</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.specs.width}/{selectedProduct.specs.aspectRatio}R{selectedProduct.specs.rimDiameter}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Load Index</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.specs.loadIndex}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Speed Rating</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.specs.speedRating}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Tread Depth</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.specs.treadDepth}mm</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Weight</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.specs.weight}kg</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Pattern</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.specs.treadPattern}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Construction</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.specs.sidewallConstruction}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Max Pressure</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.specs.maxPressure} PSI</p>
-                      </div>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="inventory" className="space-y-6 mt-6">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">SKU</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.inventory.sku}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Location</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.inventory.location || 'Not specified'}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Supplier</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.inventory.supplier || 'Not specified'}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Reorder Level</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.inventory.reorderLevel}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Max Stock</Label>
-                        <p className="font-bold text-lg mt-1">{selectedProduct.inventory.maxStockLevel}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border">
-                        <Label className="text-sm text-gray-600 font-medium">Last Restocked</Label>
-                        <p className="font-bold text-lg mt-1">{new Date(selectedProduct.inventory.lastRestocked).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="sales" className="space-y-6 mt-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200">
-                        <Label className="text-sm text-blue-600 font-medium">Total Revenue</Label>
-                        <p className="text-2xl font-bold text-blue-900 mt-2">€{selectedProduct.salesData.revenue.toLocaleString()}</p>
-                      </div>
-                      <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg border border-green-200">
-                        <Label className="text-sm text-green-600 font-medium">Units Sold</Label>
-                        <p className="text-2xl font-bold text-green-900 mt-2">{selectedProduct.salesData.totalSold}</p>
-                      </div>
-                      <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-lg border border-purple-200">
-                        <Label className="text-sm text-purple-600 font-medium">Page Views</Label>
-                        <p className="text-2xl font-bold text-purple-900 mt-2">{selectedProduct.salesData.viewCount}</p>
-                      </div>
-                      <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-lg border border-orange-200">
-                        <Label className="text-sm text-orange-600 font-medium">Wishlisted</Label>
-                        <p className="text-2xl font-bold text-orange-900 mt-2">{selectedProduct.salesData.wishlistCount}</p>
-                      </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
               </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Fullscreen Image Modal */}
-      <Dialog open={isImageFullscreen} onOpenChange={setIsImageFullscreen}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0 bg-black/95">
-          <div className="relative w-full h-full flex items-center justify-center">
-            {selectedProduct && (
-              <>
-                {/* Close Button */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute top-4 right-4 z-10 text-white hover:bg-white/20"
-                  onClick={toggleFullscreen}
-                >
-                  <X className="w-6 h-6" />
-                </Button>
-                
-                {/* Image */}
-                <div className="relative max-w-full max-h-full">
-                  <Image
-                    src={selectedProduct.images[currentImageIndex] || selectedProduct.thumbnailImage}
-                    alt={selectedProduct.name}
-                    width={1200}
-                    height={1200}
-                    className="object-contain max-w-full max-h-full"
-                  />
+              
+              {selectedProduct.description && (
+                <div>
+                  <h4 className="font-semibold mb-2">Description</h4>
+                  <p className="text-gray-700">{selectedProduct.description}</p>
                 </div>
-                
-                {/* Navigation Controls */}
-                {selectedProduct.images.length > 1 && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="lg"
-                      className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white hover:bg-white/20"
-                      onClick={previousImage}
-                      disabled={currentImageIndex === 0}
-                    >
-                      <ChevronLeft className="w-8 h-8" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="lg"
-                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white hover:bg-white/20"
-                      onClick={nextImage}
-                      disabled={currentImageIndex === selectedProduct.images.length - 1}
-                    >
-                      <ChevronRight className="w-8 h-8" />
-                    </Button>
-                  </>
-                )}
-                
-                {/* Image Info */}
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-                  <div className="bg-black/70 text-white px-4 py-2 rounded-lg text-center">
-                    <p className="text-sm font-medium">{selectedProduct.name}</p>
-                    {selectedProduct.images.length > 1 && (
-                      <p className="text-xs opacity-75">
-                        Image {currentImageIndex + 1} of {selectedProduct.images.length}
-                      </p>
+              )}
+              
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <h4 className="font-semibold mb-3">Pricing</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Price:</span>
+                      <span className="font-medium">€{selectedProduct.price}</span>
+                    </div>
+                    {selectedProduct.compareAtPrice && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Compare At:</span>
+                        <span className="font-medium">€{selectedProduct.compareAtPrice}</span>
+                      </div>
                     )}
                   </div>
                 </div>
-
-                {/* Thumbnail Navigation */}
-                {selectedProduct.images.length > 1 && (
-                  <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2">
-                    <div className="flex space-x-2 bg-black/50 p-2 rounded-lg">
-                      {selectedProduct.images.map((image, index) => (
-                        <button
-                          key={index}
-                          onClick={() => selectImage(index)}
-                          className={`w-12 h-12 relative overflow-hidden rounded border-2 transition-all duration-200 ${
-                            currentImageIndex === index 
-                              ? 'border-tire-orange' 
-                              : 'border-white/30 hover:border-white/60'
-                          }`}
-                        >
-                          <Image
-                            src={image}
-                            alt={`Thumbnail ${index + 1}`}
-                            fill
-                            className="object-cover"
-                          />
-                        </button>
-                      ))}
+                
+                <div>
+                  <h4 className="font-semibold mb-3">Inventory</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Stock:</span>
+                      <span className={`font-medium ${getStockColor(selectedProduct.stockQuantity, selectedProduct.lowStockThreshold)}`}>
+                        {selectedProduct.stockQuantity}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Low Stock Threshold:</span>
+                      <span className="font-medium">{selectedProduct.lowStockThreshold}</span>
                     </div>
                   </div>
-                )}
-              </>
-            )}
-          </div>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -978,63 +2112,29 @@ const ProductsPage = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center text-red-600">
               <AlertTriangle className="w-5 h-5 mr-2" />
-              Confirm Deletion
+              Delete Product
             </DialogTitle>
           </DialogHeader>
           {productToDelete && (
             <div className="space-y-4">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-gray-900 mb-2">
-                  Are you sure you want to delete this product?
-                </p>
-                <div className="bg-white p-3 rounded border">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
-                      <Image
-                        src={productToDelete.thumbnailImage}
-                        alt={productToDelete.name}
-                        width={48}
-                        height={48}
-                        className="object-cover"
-                      />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">{productToDelete.name}</p>
-                      <p className="text-sm text-gray-600">{productToDelete.brand} • SKU: {productToDelete.inventory.sku}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 text-sm text-red-700">
-                  <p>⚠️ This action cannot be undone. The product will be permanently removed from your inventory.</p>
-                </div>
-              </div>
+              <Alert>
+                <AlertDescription>
+                  Are you sure you want to delete <strong>{productToDelete.name}</strong>? 
+                  This action cannot be undone.
+                </AlertDescription>
+              </Alert>
               
-              <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={cancelDeleteProduct}
-                  disabled={isDeleting}
-                  className="w-full sm:w-auto"
-                >
+              <div className="flex justify-end space-x-3">
+                <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button
-                  variant="destructive"
+                <Button 
+                  variant="destructive" 
                   onClick={confirmDeleteProduct}
-                  disabled={isDeleting}
-                  className="w-full sm:w-auto"
+                  disabled={deleteProductMutation.isPending}
                 >
-                  {isDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete Product
-                    </>
-                  )}
+                  {deleteProductMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Delete Product
                 </Button>
               </div>
             </div>
@@ -1043,6 +2143,4 @@ const ProductsPage = () => {
       </Dialog>
     </div>
   );
-};
-
-export default ProductsPage;
+}

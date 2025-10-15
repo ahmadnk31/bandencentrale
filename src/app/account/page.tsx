@@ -222,8 +222,8 @@ const AccountPage = () => {
       {/* Main Content */}
       <section className="py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8 overflow-scroll">
+            <TabsList className="flex w-full shrink-0 overflow-scroll gap-2 justify-start lg:justify-center">
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="orders">Orders</TabsTrigger>
               <TabsTrigger value="appointments">Appointments</TabsTrigger>

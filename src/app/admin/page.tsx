@@ -14,8 +14,12 @@ import {
   Eye,
   MoreVertical,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Tags,
+  Building2,
+  Plus
 } from "lucide-react";
+import Link from "next/link";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 
 const AdminDashboard = () => {
@@ -104,12 +108,17 @@ const AdminDashboard = () => {
           <p className="text-gray-600 mt-2">Welcome back! Here's what's happening with your tire shop.</p>
         </div>
         <div className="flex space-x-3">
-          <Button variant="outline">
-            <Eye className="w-4 h-4 mr-2" />
-            View Store
+          <Button variant="outline" asChild>
+            <Link href="/">
+              <Eye className="w-4 h-4 mr-2" />
+              View Store
+            </Link>
           </Button>
-          <Button className="bg-tire-gradient">
-            Add Product
+          <Button className="bg-tire-gradient" asChild>
+            <Link href="/admin/products">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Product
+            </Link>
           </Button>
         </div>
       </div>
@@ -157,6 +166,63 @@ const AdminDashboard = () => {
         ))}
       </div>
 
+      {/* Quick Actions */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.4 }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <p className="text-sm text-gray-600">Manage your store inventory and organization</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2" asChild>
+                <Link href="/admin/hero-banners">
+                  <Eye className="w-8 h-8 text-orange-600" />
+                  <div className="text-center">
+                    <div className="font-medium">Hero Banners</div>
+                    <div className="text-xs text-gray-500">Manage homepage banners</div>
+                  </div>
+                </Link>
+              </Button>
+              
+              <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2" asChild>
+                <Link href="/admin/products">
+                  <Package className="w-8 h-8 text-blue-600" />
+                  <div className="text-center">
+                    <div className="font-medium">Manage Products</div>
+                    <div className="text-xs text-gray-500">Add, edit, or remove products</div>
+                  </div>
+                </Link>
+              </Button>
+              
+              <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2" asChild>
+                <Link href="/admin/categories">
+                  <Tags className="w-8 h-8 text-green-600" />
+                  <div className="text-center">
+                    <div className="font-medium">Manage Categories</div>
+                    <div className="text-xs text-gray-500">Organize product categories</div>
+                  </div>
+                </Link>
+              </Button>
+              
+              <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2" asChild>
+                <Link href="/admin/brands">
+                  <Building2 className="w-8 h-8 text-purple-600" />
+                  <div className="text-center">
+                    <div className="font-medium">Manage Brands</div>
+                    <div className="text-xs text-gray-500">Add and manage tire brands</div>
+                  </div>
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Revenue Chart */}
@@ -164,7 +230,7 @@ const AdminDashboard = () => {
           className="lg:col-span-2"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
         >
           <Card>
             <CardHeader>
@@ -194,7 +260,7 @@ const AdminDashboard = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
+          transition={{ duration: 0.6, delay: 0.6 }}
         >
           <Card>
             <CardHeader>
@@ -244,7 +310,7 @@ const AdminDashboard = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
+          transition={{ duration: 0.6, delay: 0.7 }}
         >
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -287,7 +353,7 @@ const AdminDashboard = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.7 }}
+          transition={{ duration: 0.6, delay: 0.8 }}
         >
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">

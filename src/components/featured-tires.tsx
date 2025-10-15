@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
+import { useProducts, Product } from "@/hooks/use-store-data";
 import { 
   Star, 
   ShoppingCart, 
@@ -18,14 +19,28 @@ import {
   Shield,
   Truck,
   Clock,
-  Award
+  Award,
+  Loader2
 } from "lucide-react";
 import ProductCard from "@/components/product-card";
 
 const FeaturedTires = () => {
   const router = useRouter();
   
-  const tires = [
+  // Fetch featured products from API
+  const { data: productsResponse, isLoading: productsLoading, error: productsError } = useProducts({ 
+    limit: 8, 
+    inStock: true,
+    sortBy: 'name',
+    sortOrder: 'asc'
+  });
+  
+  // Filter only featured products or use all if none are featured
+  const allTires = productsResponse?.data || [];
+  const featuredTires = allTires.filter((tire: Product) => tire.isFeatured);
+  const tires = featuredTires.length > 0 ? featuredTires : allTires.slice(0, 4);
+
+  const mockTires = [
     {
       id: 1,
       name: "Michelin Pilot Sport 4S",
@@ -116,16 +131,16 @@ const FeaturedTires = () => {
     }
   ];
 
-  const handleAddToCart = (id: number) => {
+  const handleAddToCart = (id: number | string) => {
     console.log(`Added product ${id} to cart`);
     // Implement cart logic here
   };
 
-  const handleViewDetails = (id: number) => {
+  const handleViewDetails = (id: number | string) => {
     router.push(`/product/${id}`);
   };
 
-  const handleToggleFavorite = (id: number) => {
+  const handleToggleFavorite = (id: number | string) => {
     console.log(`Toggled favorite for product ${id}`);
     // Implement favorite toggle logic
   };
@@ -165,19 +180,73 @@ const FeaturedTires = () => {
           </p>
         </motion.div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {tires.map((tire, index) => (
-            <ProductCard
-              key={tire.id}
-              {...tire}
-              onAddToCart={handleAddToCart}
-              onViewDetails={handleViewDetails}
-              onToggleFavorite={handleToggleFavorite}
-              className="opacity-0 animate-fade-in"
-             
-            />
-          ))}
-        </div>
+        {/* Loading State */}
+        {productsLoading && (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-8 h-8 animate-spin text-tire-orange mr-2" />
+            <span className="text-lg">Loading featured tires...</span>
+          </div>
+        )}
+
+        {/* Error State */}
+        {productsError && (
+          <div className="text-center py-16">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+              <p className="text-red-600">Failed to load featured tires. Please try again.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Products Grid */}
+        {!productsLoading && !productsError && (
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {tires.map((tire: Product, index: number) => (
+              <ProductCard
+                key={tire.id}
+                id={tire.id}
+                name={tire.name}
+                brand={tire.brand || "Unknown"}
+                price={parseFloat(tire.price)}
+                originalPrice={tire.compareAtPrice ? parseFloat(tire.compareAtPrice) : undefined}
+                images={tire.images && tire.images.length > 0 ? tire.images : [
+                  { src: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&h=300&fit=crop&crop=center", alt: `${tire.name} - Tire Image` }
+                ]}
+                rating={4.5}
+                reviews={Math.floor(Math.random() * 200) + 50}
+                size={tire.size}
+                season={
+                  tire.season === 'all-season' ? 'All-Season' :
+                  tire.season === 'summer' ? 'Summer' :
+                  tire.season === 'winter' ? 'Winter' :
+                  'All-Season'
+                }
+                speedRating={tire.speedRating || undefined}
+                features={tire.features || []}
+                inStock={tire.inStock}
+                onAddToCart={handleAddToCart}
+                onViewDetails={handleViewDetails}
+                onToggleFavorite={handleToggleFavorite}
+                className="opacity-0 animate-fade-in"
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Fallback to mock data if no API data */}
+        {!productsLoading && !productsError && tires.length === 0 && (
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {mockTires.slice(0, 4).map((tire, index) => (
+              <ProductCard
+                key={tire.id}
+                {...tire}
+                onAddToCart={handleAddToCart}
+                onViewDetails={handleViewDetails}
+                onToggleFavorite={handleToggleFavorite}
+                className="opacity-0 animate-fade-in"
+              />
+            ))}
+          </div>
+        )}
 
         {/* CTA */}
         <motion.div

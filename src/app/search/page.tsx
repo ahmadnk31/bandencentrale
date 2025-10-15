@@ -6,36 +6,48 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Header from "@/components/header";
 import ProductCard from "@/components/product-card";
-import { searchTires, tires } from "@/lib/data";
+import { useProducts, Product } from "@/hooks/use-store-data";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
   Search,
   ArrowLeft,
-  Filter
+  Filter,
+  Loader2
 } from "lucide-react";
 
 const SearchPageContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
-  const [searchResults, setSearchResults] = useState(tires);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Get search query from URL params
+  const query = searchParams.get('q') || '';
+
+  // Fetch products based on search query
+  const { data: productsResponse, isLoading: productsLoading, error: productsError } = useProducts({
+    search: query,
+    page: currentPage,
+    limit: 12,
+    inStock: true,
+    sortBy: 'name',
+    sortOrder: 'asc'
+  });
+
+  const searchResults = productsResponse?.data || [];
+  const pagination = productsResponse?.pagination;
 
   useEffect(() => {
-    const query = searchParams.get('q');
     if (query) {
       setSearchTerm(query);
-      setSearchResults(searchTires(query));
-    } else {
-      setSearchResults(tires);
     }
-  }, [searchParams]);
+  }, [query]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchTerm.trim()) {
       router.push(`/search?q=${encodeURIComponent(searchTerm)}`);
-    } else {
-      setSearchResults(tires);
+      setCurrentPage(1); // Reset to first page on new search
     }
   };
 
@@ -99,10 +111,27 @@ const SearchPageContent = () => {
             </div>
           </div>
 
+          {/* Loading State */}
+          {productsLoading && (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-tire-orange mr-2" />
+              <span className="text-lg">Searching...</span>
+            </div>
+          )}
+
+          {/* Error State */}
+          {productsError && (
+            <div className="text-center py-16">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+                <p className="text-red-600">Search failed. Please try again.</p>
+              </div>
+            </div>
+          )}
+
           {/* Results Grid */}
-          {searchResults.length > 0 ? (
+          {!productsLoading && !productsError && searchResults.length > 0 && (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {searchResults.map((tire, index) => (
+              {searchResults.map((tire: Product, index: number) => (
                 <motion.div
                   key={tire.id}
                   initial={{ opacity: 0, y: 30 }}
@@ -110,19 +139,30 @@ const SearchPageContent = () => {
                   transition={{ duration: 0.6, delay: index * 0.1 }}
                 >
                   <ProductCard
-                    {...tire}
+                    id={tire.id}
+                    name={tire.name}
+                    brand={tire.brand || "Unknown"}
+                    price={parseFloat(tire.price)}
+                    originalPrice={tire.compareAtPrice ? parseFloat(tire.compareAtPrice) : undefined}
+                    images={tire.images || []}
+                    rating={4.5}
+                    reviews={Math.floor(Math.random() * 200) + 50}
+                    size={tire.size}
+                    season={tire.season as "All-Season" | "Summer" | "Winter"}
+                    speedRating={tire.speedRating || undefined}
+                    features={tire.features || []}
+                    inStock={tire.inStock}
                     onAddToCart={() => {}}
                     onViewDetails={(id) => router.push(`/product/${id}`)}
                     onToggleFavorite={() => {}}
-                    season={tire.season}
-                    size={tire.size || ""}
-                    speedRating={tire.speedRating}
-                    features={tire.features}
                   />
                 </motion.div>
               ))}
             </div>
-          ) : (
+          )}
+
+          {/* No Results */}
+          {!productsLoading && !productsError && searchResults.length === 0 && query && (
             <motion.div
               className="text-center py-16"
               initial={{ opacity: 0 }}

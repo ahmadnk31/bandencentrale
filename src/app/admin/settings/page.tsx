@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import ImageUpload, { UploadedImage } from "@/components/image-upload";
 import { 
   Save,
   Upload,
@@ -33,6 +34,7 @@ import {
 
 const SettingsPage = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [logoImages, setLogoImages] = useState<UploadedImage[]>([]);
 
   // Store Settings
   const [storeSettings, setStoreSettings] = useState({
@@ -106,22 +108,33 @@ const SettingsPage = () => {
     }, 1000);
   };
 
+  const handleLogoImagesChange = (images: UploadedImage[]) => {
+    setLogoImages(images);
+    // Update the store logo with the first uploaded image
+    if (images.length > 0 && images[0].uploadResult?.success && images[0].uploadResult.url) {
+      setStoreSettings({
+        ...storeSettings,
+        logo: images[0].uploadResult.url
+      });
+    }
+  };
+
   return (
     <div className="space-y-8">
         {/* Header */}
         <div className="flex justify-between items-center">
-          <div>
+          <div className="space-y-1">
             <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
             <p className="text-gray-600 mt-2">Manage your store configuration and preferences</p>
           </div>
           <Button className="bg-tire-gradient">
-            <Save className="w-4 h-4 mr-2" />
-            Save All Changes
+            <Save className="w-4 h-4 md:mr-2" />
+            <span className="hidden md:inline">Save All Changes</span>
           </Button>
         </div>
 
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="flex space-x-2 overflow-x-auto w-full">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
@@ -223,17 +236,34 @@ const SettingsPage = () => {
                 </div>
 
                 <div className="pt-6 border-t">
-                  <Label>Store Logo</Label>
-                  <div className="mt-2 flex items-center gap-4">
-                    <Avatar className="w-20 h-20">
-                      <AvatarImage src={storeSettings.logo} />
-                      <AvatarFallback>Logo</AvatarFallback>
-                    </Avatar>
-                    <Button variant="outline">
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload New Logo
-                    </Button>
-                  </div>
+                  <Label className="text-base font-medium">Store Logo</Label>
+                  <p className="text-sm text-gray-500 mb-4">Upload your store logo. Recommended size: 200x80px</p>
+                  
+                  {/* Current Logo Preview */}
+                  {storeSettings.logo && (
+                    <div className="mb-4">
+                      <Label className="text-sm text-gray-600">Current Logo</Label>
+                      <div className="mt-2 flex items-center gap-4">
+                        <Avatar className="w-20 h-20">
+                          <AvatarImage src={storeSettings.logo} />
+                          <AvatarFallback>Logo</AvatarFallback>
+                        </Avatar>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Logo Upload Component */}
+                  <ImageUpload
+                    onImagesChange={handleLogoImagesChange}
+                    existingImages={storeSettings.logo ? [storeSettings.logo] : []}
+                    maxFiles={1}
+                    uploadType="logo"
+                    title="Upload Company Logo"
+                    description="Choose a high-quality logo that represents your brand"
+                    acceptedFormats="PNG, JPG, SVG"
+                    maxFileSize="5MB"
+                    className="border-dashed border-2 border-gray-300 rounded-lg p-6"
+                  />
                 </div>
 
                 <Button onClick={() => handleSave('general')} disabled={isLoading}>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { 
   LayoutDashboard, 
   Package, 
@@ -15,12 +16,29 @@ import {
   X,
   Car,
   Bell,
-  Search
+  Search,
+  UserCircle,
+  Calendar,
+  FileText,
+  Shield,
+  Home,
+  Tags,
+  Building2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useSession, signOut } from "@/lib/auth/client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -28,12 +46,62 @@ interface AdminLayoutProps {
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { data: session, isPending } = useSession();
+  const router = useRouter();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isPending && !session) {
+      router.push('/login?from=/admin');
+    }
+  }, [session, isPending, router]);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
+
+  // Show loading state while checking authentication
+  if (isPending) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show access denied if not authenticated
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full mx-auto">
+          <Alert>
+            <Shield className="h-4 w-4" />
+            <AlertDescription>
+              Access denied. Please sign in to view the admin panel.
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
 
   const navigation = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard, current: true },
+    { name: "Hero Banners", href: "/admin/hero-banners", icon: Home, current: false },
     { name: "Products", href: "/admin/products", icon: Package, current: false },
+    { name: "Categories", href: "/admin/categories", icon: Tags, current: false },
+    { name: "Brands", href: "/admin/brands", icon: Building2, current: false },
     { name: "Orders", href: "/admin/orders", icon: ShoppingCart, current: false, badge: "3" },
-    { name: "Customers", href: "/admin/customers", icon: Users, current: false },
+    { name: "Users", href: "/admin/users", icon: Users, current: false },
+    { name: "Appointments", href: "/admin/appointments", icon: Calendar, current: false },
+    { name: "Quotes", href: "/admin/quotes", icon: FileText, current: false },
+    { name: "Service Categories", href: "/admin/service-categories", icon: Tags, current: false },
+    { name: "Services", href: "/admin/services", icon: Package, current: false },
     { name: "Analytics", href: "/admin/analytics", icon: BarChart3, current: false },
     { name: "Settings", href: "/admin/settings", icon: Settings, current: false },
   ];
@@ -80,7 +148,11 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
             ))}
           </nav>
           <div className="border-t p-4">
-            <Button variant="ghost" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={handleSignOut}
+            >
               <LogOut className="w-5 h-5 mr-3" />
               Sign Out
             </Button>
@@ -121,7 +193,11 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
               ))}
             </ul>
             <div className="mt-auto border-t pt-4 pb-4">
-              <Button variant="ghost" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={handleSignOut}
+              >
                 <LogOut className="w-5 h-5 mr-3" />
                 Sign Out
               </Button>
@@ -162,10 +238,50 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
                 </Badge>
               </Button>
               
-              <Avatar className="w-8 h-8">
-                <AvatarImage src="/api/placeholder/32/32" />
-                <AvatarFallback>AD</AvatarFallback>
-              </Avatar>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/" className="flex items-center space-x-2">
+                  <Home className="w-4 h-4" />
+                  <span className="hidden sm:inline">Store</span>
+                </Link>
+              </Button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+                    <Avatar className="w-8 h-8">
+                      <AvatarImage src="/api/placeholder/32/32" />
+                      <AvatarFallback>
+                        {session.user.name?.charAt(0).toUpperCase() || 
+                         session.user.email?.charAt(0).toUpperCase() || 'A'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="hidden sm:inline text-sm">
+                      {session.user.name || session.user.email}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Admin Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard" className="flex items-center">
+                      <UserCircle className="w-4 h-4 mr-2" />
+                      Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/" className="flex items-center">
+                      <Home className="w-4 h-4 mr-2" />
+                      View Store
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="flex items-center text-red-600">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>

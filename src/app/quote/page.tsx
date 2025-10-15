@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import Header from "@/components/header";
 import { useSearchParams } from "next/navigation";
-import { getTireById } from "@/lib/data";
+import { useProduct } from "@/hooks/use-store-data";
 import { 
   Calculator,
   Car,
+  Loader2,
   Phone,
   Mail,
   MapPin,
@@ -36,8 +37,9 @@ const QuotePageContent = () => {
   console.log('Quantity from URL:', quantity);
   console.log('Service from URL:', service);
 
-  // Get product information if coming from product page
-  const product = productId ? getTireById(Number(productId)) : null;
+  // Fetch product data from API if productId is provided
+  const { data: productResponse, isLoading: productLoading, error: productError } = useProduct(productId || '');
+  const product = productResponse?.data;
   console.log('Product found:', product);
 
   const [formData, setFormData] = useState({
@@ -68,13 +70,15 @@ const QuotePageContent = () => {
     },
     
     // Additional Information
-    notes: product ? `Interested in ${product.brand} ${product.name}` : 
+    notes: product ? `Interested in ${product.brand?.name || 'Unknown Brand'} ${product.name}` : 
            service ? `Interested in ${service.replace(/-/g, ' ')} service` : "",
     preferredContactTime: "",
     urgency: ""
   });
 
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const vehicleMakes = [
     "Audi", "BMW", "Mercedes-Benz", "Volkswagen", "Toyota", "Honda", "Ford", 
@@ -104,10 +108,123 @@ const QuotePageContent = () => {
   const currentYear = new Date().getFullYear();
   const years = Array.from({length: 25}, (_, i) => currentYear - i);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Quote request submitted:", formData);
-    setIsSubmitted(true);
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      // Prepare quote data according to API structure
+      const quoteData: {
+        customerName: string;
+        customerEmail: string;
+        customerPhone?: string;
+        vehicleYear?: string;
+        vehicleMake?: string;
+        vehicleModel?: string;
+        items: Array<{
+          productId?: string;
+          serviceId?: string;
+          name: string;
+          description?: string;
+          quantity: number;
+          unitPrice: number;
+          notes?: string;
+          metadata?: any;
+        }>;
+        notes?: string;
+        requirements?: string[];
+      } = {
+        // Customer info
+        customerName: formData.name,
+        customerEmail: formData.email,
+        customerPhone: formData.phone,
+        
+        // Vehicle info
+        vehicleYear: formData.vehicleYear,
+        vehicleMake: formData.vehicleMake,
+        vehicleModel: formData.vehicleModel,
+        
+        // Quote items
+        items: [],
+        
+        // Additional info
+        notes: formData.notes,
+        requirements: []
+      };
+
+      // Add tire item if product is selected
+      if (product) {
+        quoteData.items.push({
+          productId: product.id,
+          name: `${product.brand?.name || 'Unknown Brand'} ${product.name}`,
+          description: `${product.season} tire - Size: ${formData.currentTireSize || 'TBD'}`,
+          quantity: parseInt(formData.quantity),
+          unitPrice: parseFloat(product.price),
+          notes: `Season: ${product.season}, Size: ${formData.currentTireSize || 'TBD'}`,
+          metadata: {
+            size: formData.currentTireSize,
+            season: product.season,
+            speedRating: product.speedRating,
+            loadIndex: product.loadIndex
+          }
+        });
+      } else {
+        // Add general tire request if no specific product
+        quoteData.items.push({
+          name: formData.tireType || 'Tire Quote Request',
+          description: `${formData.tireType} - Size: ${formData.currentTireSize || 'TBD'}`,
+          quantity: parseInt(formData.quantity),
+          unitPrice: 0, // Will be determined by sales team
+          notes: `Size: ${formData.currentTireSize || 'TBD'}, Type: ${formData.tireType}`,
+          metadata: {
+            size: formData.currentTireSize,
+            tireType: formData.tireType
+          }
+        });
+      }
+
+      // Add service requirements
+      Object.entries(formData.services).forEach(([service, selected]) => {
+        if (selected) {
+          quoteData.requirements!.push(service);
+        }
+      });
+
+      // Add additional requirements
+      if (formData.preferredContactTime) {
+        quoteData.requirements!.push(`Contact time: ${formData.preferredContactTime}`);
+      }
+      if (formData.urgency) {
+        quoteData.requirements!.push(`Urgency: ${formData.urgency}`);
+      }
+
+      console.log("Submitting quote data:", quoteData);
+
+      // Submit to API
+      const response = await fetch('/api/quotes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(quoteData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit quote request');
+      }
+
+      const result = await response.json();
+      console.log("Quote submitted successfully:", result);
+      setIsSubmitted(true);
+
+    } catch (error) {
+      console.error("Error submitting quote:", error);
+      setSubmitError(error instanceof Error ? error.message : 'Failed to submit quote request');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (field: string, value: string) => {
@@ -229,14 +346,14 @@ const QuotePageContent = () => {
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-16 bg-white rounded-lg p-2 shadow-sm">
                       <img 
-                        src={product.images[0]?.src} 
+                        src={product.images && product.images.length > 0 ? product.images[0]?.src : "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&h=300&fit=crop"} 
                         alt={product.name}
                         className="w-full h-full object-cover rounded"
                       />
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-tire-dark">
-                        {product.brand} {product.name}
+                        {product.brand?.name || 'Unknown Brand'} {product.name}
                       </h3>
                       <p className="text-tire-gray">
                         {selectedSize && `Size: ${selectedSize} • `}
@@ -621,9 +738,29 @@ const QuotePageContent = () => {
               transition={{ duration: 0.6, delay: 0.6 }}
               className="text-center"
             >
-              <Button type="submit" size="lg" className="bg-tire-gradient px-12 py-4 text-lg">
-                <Calculator className="w-6 h-6 mr-3" />
-                Get My Free Quote
+              {submitError && (
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-600 text-sm">{submitError}</p>
+                </div>
+              )}
+              
+              <Button 
+                type="submit" 
+                size="lg" 
+                className="bg-tire-gradient px-12 py-4 text-lg"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-6 h-6 mr-3 animate-spin" />
+                    Submitting Quote...
+                  </>
+                ) : (
+                  <>
+                    <Calculator className="w-6 h-6 mr-3" />
+                    Get My Free Quote
+                  </>
+                )}
               </Button>
               <p className="text-sm text-gray-600 mt-4">
                 By submitting this form, you agree to be contacted by our tire experts. 

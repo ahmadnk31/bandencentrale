@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,11 +9,12 @@ import { Slider } from "@/components/ui/slider";
 import ProductCard from "@/components/product-card";
 import Header from "@/components/header";
 import { useRouter, useParams } from "next/navigation";
-import { tires, brands, getTiresBySeason } from "@/lib/data";
+import { useProducts, useBrands, ProductFilters, Product } from "@/hooks/use-store-data";
 import { 
   Search, 
   Grid, 
   List,
+  Loader2,
   Car,
   Truck,
   SlidersHorizontal,
@@ -31,170 +32,185 @@ const CategoryPage = () => {
   const [viewMode, setViewMode] = useState("grid");
   const [priceRange, setPriceRange] = useState([50, 500]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedBrand, setSelectedBrand] = useState("");
-  const [selectedSize, setSelectedSize] = useState("");
+  const [selectedBrand, setSelectedBrand] = useState("all-brands");
+  const [selectedSize, setSelectedSize] = useState("all-sizes");
+  const [sortBy, setSortBy] = useState("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Normalize category for display and filtering
-  const normalizedCategory = category?.charAt(0).toUpperCase() + category?.slice(1);
-  const seasonFilter = category === 'all-season' ? 'All-Season' : normalizedCategory;
+  const tiresPerPage = 12;
 
-  // Get tires for this category
-  const validSeasons: ("Summer" | "Winter")[] = ["Summer", "Winter"];
-  const isValidSeason = (season: string): season is "Summer" | "Winter" => {
-    return validSeasons.includes(season as "Summer" | "Winter");
-  };
+  // Get the correct season name for API
+  const seasonFilter = category === "all-season" ? "all-season" : 
+                      category === "summer" ? "summer" :
+                      category === "winter" ? "winter" : "";
 
-  const categoryTires = category === 'all' 
-    ? tires 
-    : isValidSeason(seasonFilter) 
-      ? getTiresBySeason(seasonFilter)
-      : tires.filter(tire => tire.season.toLowerCase() === category?.toLowerCase());
+  // Prepare filters for API call
+  const filters: ProductFilters = useMemo(() => {
+    const f: ProductFilters = {
+      page: currentPage,
+      limit: tiresPerPage,
+      sortBy,
+      sortOrder,
+      inStock: true
+    };
 
-  // Generate dynamic filter options based on actual category data
-  const availableBrands = [...new Set(categoryTires.map(tire => tire.brand))].sort();
-  const availableSizes = [...new Set(categoryTires.flatMap(tire => tire.size))].sort();
+    if (searchTerm.trim()) f.search = searchTerm.trim();
+    if (selectedBrand && selectedBrand !== "all-brands") f.brand = selectedBrand;
+    if (selectedSize && selectedSize !== "all-sizes") f.size = selectedSize;
+    if (seasonFilter) f.season = seasonFilter;
+    if (priceRange[0] > 50) f.minPrice = priceRange[0];
+    if (priceRange[1] < 500) f.maxPrice = priceRange[1];
 
-  const filteredTires = categoryTires.filter(tire => {
-    const matchesSearch = tire.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         tire.brand.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesBrand = !selectedBrand || tire.brand === selectedBrand;
-    const matchesSize = !selectedSize || tire.size === selectedSize;
-    const matchesPrice = tire.price >= priceRange[0] && tire.price <= priceRange[1];
+    return f;
+  }, [searchTerm, selectedBrand, selectedSize, seasonFilter, priceRange, sortBy, sortOrder, currentPage]);
 
-    return matchesSearch && matchesBrand && matchesSize && matchesPrice;
-  });
+  // Fetch data
+  const { data: productsResponse, isLoading: productsLoading, error: productsError } = useProducts(filters);
+  const { data: brandsResponse, isLoading: brandsLoading } = useBrands();
 
-  const getCategoryInfo = (cat: string) => {
-    switch(cat?.toLowerCase()) {
-      case 'summer':
+  const tires = productsResponse?.data || [];
+  const pagination = productsResponse?.pagination;
+  const brands = brandsResponse?.data || [];
+  const availableBrands = brands.map((brand: any) => brand.name);
+  const availableSizes = ["195/65R15", "205/55R16", "245/35R19"];
+
+  // Category info
+  const getCategoryInfo = () => {
+    switch (category) {
+      case "summer":
         return {
-          title: 'Summer Tires',
-          subtitle: 'High performance tires for warm weather driving',
+          title: "Summer Tires",
+          description: "High-performance tires designed for warm weather and dry conditions",
           icon: Sun,
-          description: 'Designed for optimal performance in warm weather conditions with superior grip and handling.',
-          gradient: 'from-yellow-500 to-orange-600'
+          color: "from-orange-500 to-red-600"
         };
-      case 'winter':
+      case "winter":
         return {
-          title: 'Winter Tires',
-          subtitle: 'Superior traction for cold weather and snow',
+          title: "Winter Tires",
+          description: "Specialized tires for cold weather, snow, and ice conditions",
           icon: Snowflake,
-          description: 'Engineered for cold weather, snow, and ice with enhanced traction and safety features.',
-          gradient: 'from-blue-500 to-cyan-600'
+          color: "from-blue-500 to-indigo-600"
         };
-      case 'all-season':
+      case "all-season":
         return {
-          title: 'All-Season Tires',
-          subtitle: 'Versatile performance for year-round driving',
+          title: "All-Season Tires",
+          description: "Versatile tires for year-round performance in various conditions",
           icon: CloudRain,
-          description: 'Balanced performance for various weather conditions throughout the year.',
-          gradient: 'from-green-500 to-teal-600'
+          color: "from-green-500 to-teal-600"
         };
       default:
         return {
-          title: 'All Tires',
-          subtitle: 'Complete tire collection',
+          title: "Tire Category",
+          description: "Premium tires for your vehicle",
           icon: Car,
-          description: 'Browse our complete selection of premium tires.',
-          gradient: 'from-tire-dark to-primary'
+          color: "from-tire-dark to-primary"
         };
     }
   };
 
-  const categoryInfo = getCategoryInfo(category);
-
-  useEffect(() => {
-    // Reset filters when category changes
-    setSearchTerm("");
-    setSelectedBrand("");
-    setSelectedSize("");
-    setPriceRange([50, 500]);
-  }, [category]);
+  const categoryInfo = getCategoryInfo();
+  const IconComponent = categoryInfo.icon;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
       
       {/* Hero Section */}
-      <section className={`bg-gradient-to-r ${categoryInfo.gradient} text-white py-16`}>
+      <section className={`bg-gradient-to-r ${categoryInfo.color} text-white py-16`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
-            className="text-center"
+            className="flex items-center justify-between"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="flex items-center justify-center mb-6">
-              <categoryInfo.icon className="w-16 h-16 mr-4" />
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.back()}
+                className="text-white border-white hover:bg-white hover:text-gray-900"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <div className="bg-white/20 p-3 rounded-full">
+                <IconComponent className="w-8 h-8" />
+              </div>
               <div>
-                <h1 className="text-4xl lg:text-6xl font-bold">
-                  {categoryInfo.title}
-                </h1>
+                <h1 className="text-4xl font-bold">{categoryInfo.title}</h1>
                 <p className="text-xl text-gray-200 mt-2">
-                  {categoryInfo.subtitle}
+                  {categoryInfo.description}
                 </p>
               </div>
-            </div>
-            <p className="text-lg text-gray-200 max-w-3xl mx-auto mb-8">
-              {categoryInfo.description}
-            </p>
-            <div className="flex items-center justify-center">
-              <Button 
-                variant="outline" 
-                className="text-black border-white hover:bg-white hover:text-tire-dark mr-4"
-                onClick={() => router.back()}
-              >
-                <ArrowLeft className="w-5 h-5 mr-2" />
-                Back to All Tires
-              </Button>
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* Filters and Search */}
-      <section className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col lg:flex-row gap-6">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
+      {/* Filters & Products */}
+      <section className="py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Search and Filters */}
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div className="flex flex-col lg:flex-row gap-4 items-center">
+              {/* Search */}
+              <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <Input
-                  placeholder={`Search ${categoryInfo.title.toLowerCase()}...`}
+                  type="text"
+                  placeholder="Search tires..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
-            </div>
-
-            {/* Quick Filters */}
-            <div className="flex flex-wrap gap-4">
-              <Select value={selectedBrand === "" ? "all-brands" : selectedBrand} onValueChange={(value) => setSelectedBrand(value === "all-brands" ? "" : value)}>
+              
+              {/* Brand Filter */}
+              <Select value={selectedBrand} onValueChange={setSelectedBrand}>
                 <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Brand" />
+                  <SelectValue placeholder="All Brands" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all-brands">All Brands</SelectItem>
-                  {availableBrands.map(brand => (
+                  {availableBrands.map((brand: string) => (
                     <SelectItem key={brand} value={brand}>{brand}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select value={selectedSize === "" ? "all-sizes" : selectedSize} onValueChange={(value) => setSelectedSize(value === "all-sizes" ? "" : value)}>
+              {/* Size Filter */}
+              <Select value={selectedSize} onValueChange={setSelectedSize}>
                 <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Size" />
+                  <SelectValue placeholder="All Sizes" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all-sizes">All Sizes</SelectItem>
-                  {availableSizes.map(size => (
+                  {availableSizes.map((size: string) => (
                     <SelectItem key={size} value={size}>{size}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
+              {/* Sort */}
+              <Select value={`${sortBy}-${sortOrder}`} onValueChange={(value) => {
+                const [newSortBy, newSortOrder] = value.split('-');
+                setSortBy(newSortBy);
+                setSortOrder(newSortOrder as "asc" | "desc");
+              }}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name-asc">Name A-Z</SelectItem>
+                  <SelectItem value="name-desc">Name Z-A</SelectItem>
+                  <SelectItem value="price-asc">Price Low-High</SelectItem>
+                  <SelectItem value="price-desc">Price High-Low</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {/* View Mode */}
               <div className="flex items-center gap-2">
                 <Button
                   variant={viewMode === "grid" ? "default" : "outline"}
@@ -212,78 +228,103 @@ const CategoryPage = () => {
                 </Button>
               </div>
             </div>
-          </div>
 
-          {/* Price Range Filter */}
-          <div className="mt-6 pt-6 border-t">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-5 h-5 text-gray-500" />
-                <span className="text-sm font-medium">Price Range:</span>
+            {/* Price Range */}
+            <div className="mt-6 pt-6 border-t">
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-medium text-gray-700">
+                  Price Range: €{priceRange[0]} - €{priceRange[1]}
+                </label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedBrand("all-brands");
+                    setSelectedSize("all-sizes");
+                    setPriceRange([50, 500]);
+                  }}
+                >
+                  Clear Filters
+                </Button>
               </div>
-              <div className="flex-1 max-w-xs">
-                <Slider
-                  value={priceRange}
-                  onValueChange={setPriceRange}
-                  min={50}
-                  max={500}
-                  step={10}
-                  className="w-full"
-                />
-              </div>
-              <div className="text-sm text-gray-600">
-                €{priceRange[0]} - €{priceRange[1]}
-              </div>
+              <Slider
+                value={priceRange}
+                onValueChange={setPriceRange}
+                max={500}
+                min={50}
+                step={10}
+                className="w-full"
+              />
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Results */}
-      <section className="py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Results Header */}
-          <div className="flex justify-between items-center mb-8">
-            <div>
-              <h2 className="text-2xl font-bold text-tire-dark">
-                {filteredTires.length} {categoryInfo.title} Found
-              </h2>
-              <p className="text-tire-gray">
-                {category === 'all' ? 'Showing all available tires' : `Showing ${categoryInfo.title.toLowerCase()} in our collection`}
-              </p>
-            </div>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-tire-dark">
+              {pagination?.totalCount || 0} Tires Found
+            </h2>
           </div>
 
-          {/* Tire Grid */}
-          <div className={`grid ${
-            viewMode === "grid" 
-              ? "gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" 
-              : "gap-3 grid-cols-1"
-          }`}>
-            {filteredTires.map((tire, index) => (
-              <motion.div
-                key={tire.id}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-              >
-                <ProductCard
-                  {...tire}
-                  className={viewMode === "list" ? "flex" : ""}
-                  onAddToCart={(id) => console.log("Add to cart:", id)}
-                  onViewDetails={(id) => router.push(`/product/${id}`)}
-                  onToggleFavorite={(id) => console.log("Toggle favorite:", id)}
-                  season={tire.season as "All-Season" | "Summer" | "Winter" | undefined}
-                  size={tire.size || ""}
-                  speedRating={tire.speedRating}
-                  features={tire.features}
-                />
-              </motion.div>
-            ))}
-          </div>
+          {/* Loading State */}
+          {productsLoading && (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-tire-orange mr-2" />
+              <span className="text-lg">Loading tires...</span>
+            </div>
+          )}
+
+          {/* Error State */}
+          {productsError && (
+            <div className="text-center py-16">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+                <p className="text-red-600">Failed to load tires. Please try again.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Products Grid */}
+          {!productsLoading && !productsError && (
+            <div className={`grid gap-6 ${
+              viewMode === "grid" 
+                ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" 
+                : "grid-cols-1"
+            }`}>
+              {tires.map((tire: Product, index: number) => (
+                <motion.div
+                  key={tire.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                >
+                  <ProductCard
+                    id={tire.id}
+                    name={tire.name}
+                    brand={tire.brand || "Unknown"}
+                    price={parseFloat(tire.price)}
+                    originalPrice={tire.compareAtPrice ? parseFloat(tire.compareAtPrice) : undefined}
+                    images={tire.images && tire.images.length > 0 ? tire.images : [
+                      { src: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&h=300&fit=crop&crop=center", alt: `${tire.name} - Tire Image` }
+                    ]}
+                    rating={4.5}
+                    reviews={Math.floor(Math.random() * 200) + 50}
+                    size={tire.size}
+                    season={tire.season as "All-Season" | "Summer" | "Winter"}
+                    speedRating={tire.speedRating || undefined}
+                    features={tire.features || []}
+                    inStock={tire.inStock}
+                    className={viewMode === "list" ? "flex" : ""}
+                    onAddToCart={(id) => console.log("Add to cart:", id)}
+                    onViewDetails={(id) => router.push(`/product/${id}`)}
+                    onToggleFavorite={(id) => console.log("Toggle favorite:", id)}
+                  />
+                </motion.div>
+              ))}
+            </div>
+          )}
 
           {/* No Results */}
-          {filteredTires.length === 0 && (
+          {!productsLoading && !productsError && tires.length === 0 && (
             <motion.div
               className="text-center py-16"
               initial={{ opacity: 0 }}
@@ -291,30 +332,50 @@ const CategoryPage = () => {
               transition={{ duration: 0.6 }}
             >
               <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <categoryInfo.icon className="w-12 h-12 text-gray-400" />
+                <IconComponent className="w-12 h-12 text-gray-400" />
               </div>
               <h3 className="text-2xl font-semibold text-tire-dark mb-4">
-                No {categoryInfo.title.toLowerCase()} found
+                No tires found
               </h3>
               <p className="text-tire-gray mb-8">
-                Try adjusting your search criteria or browse other categories
+                Try adjusting your search criteria or browse our full catalog
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button 
-                  onClick={() => {
-                    setSearchTerm("");
-                    setSelectedBrand("");
-                    setSelectedSize("");
-                    setPriceRange([50, 500]);
-                  }}
-                >
-                  Clear Filters
-                </Button>
-                <Button variant="outline" onClick={() => router.push('/tires')}>
-                  Browse All Tires
-                </Button>
-              </div>
+              <Button 
+                onClick={() => {
+                  setSearchTerm("");
+                  setSelectedBrand("");
+                  setSelectedSize("");
+                  setPriceRange([50, 500]);
+                }}
+              >
+                Clear Filters
+              </Button>
             </motion.div>
+          )}
+
+          {/* Pagination */}
+          {!productsLoading && pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-12">
+              <Button 
+                variant="outline"
+                disabled={!pagination.hasPreviousPage}
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
+                Previous
+              </Button>
+              
+              <span className="text-tire-gray">
+                Page {pagination.page} of {pagination.totalPages}
+              </span>
+              
+              <Button 
+                variant="outline"
+                disabled={!pagination.hasNextPage}
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
+                Next
+              </Button>
+            </div>
           )}
         </div>
       </section>

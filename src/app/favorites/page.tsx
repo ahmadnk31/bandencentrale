@@ -5,21 +5,41 @@ import { Button } from "@/components/ui/button";
 import Header from "@/components/header";
 import ProductCard from "@/components/product-card";
 import { useFavorites } from "@/lib/favorites-context";
-import { tires } from "@/lib/data";
+import { useProductsByIds, Product } from "@/hooks/use-store-data";
 import { useRouter } from "next/navigation";
 import { 
   Heart,
   ArrowLeft,
-  ShoppingCart
+  ShoppingCart,
+  Loader2
 } from "lucide-react";
 
 const FavoritesPage = () => {
   const { favorites } = useFavorites();
   const router = useRouter();
 
-  const favoriteTires = tires.filter(tire => favorites.includes(tire.id));
+  // Convert favorites IDs to strings for the API
+  const favoriteIds = favorites.map(id => id.toString());
+  
+  // Fetch favorite products from API
+  const { data: favoritesResponse, isLoading: favoritesLoading, error: favoritesError } = useProductsByIds(favoriteIds);
+  const favoriteTires = favoritesResponse?.data || [];
 
-  if (favoriteTires.length === 0) {
+  if (favoritesLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-8 h-8 animate-spin text-tire-orange mr-2" />
+            <span className="text-lg">Loading favorites...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (favoritesError || favoriteTires.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
@@ -84,7 +104,7 @@ const FavoritesPage = () => {
       <section className="py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {favoriteTires.map((tire, index) => (
+            {favoriteTires.map((tire: Product, index: number) => (
               <motion.div
                 key={tire.id}
                 initial={{ opacity: 0, y: 30 }}
@@ -92,14 +112,22 @@ const FavoritesPage = () => {
                 transition={{ duration: 0.6, delay: index * 0.1 }}
               >
                 <ProductCard
-                  {...tire}
+                  id={tire.id}
+                  name={tire.name}
+                  brand={tire.brand || "Unknown"}
+                  price={parseFloat(tire.price)}
+                  originalPrice={tire.compareAtPrice ? parseFloat(tire.compareAtPrice) : undefined}
+                  images={tire.images || []}
+                  rating={4.5}
+                  reviews={Math.floor(Math.random() * 200) + 50}
+                  size={tire.size}
+                  season={tire.season as "All-Season" | "Summer" | "Winter"}
+                  speedRating={tire.speedRating || undefined}
+                  features={tire.features || []}
+                  inStock={tire.inStock}
                   onAddToCart={() => {}}
                   onViewDetails={(id) => router.push(`/product/${id}`)}
                   onToggleFavorite={() => {}}
-                  season={tire.season}
-                  size={tire.size || ""}
-                  speedRating={tire.speedRating}
-                  features={tire.features}
                 />
               </motion.div>
             ))}

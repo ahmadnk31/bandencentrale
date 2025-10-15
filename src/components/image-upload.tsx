@@ -36,6 +36,11 @@ interface ImageUploadProps {
   maxFiles?: number;
   className?: string;
   disabled?: boolean;
+  uploadType?: 'product' | 'logo' | 'general';
+  title?: string;
+  description?: string;
+  acceptedFormats?: string;
+  maxFileSize?: string;
 }
 
 const ImageUpload: React.FC<ImageUploadProps> = ({
@@ -43,11 +48,116 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   existingImages = [],
   maxFiles = 10,
   className = "",
-  disabled = false
+  disabled = false,
+  uploadType = 'product',
+  title,
+  description,
+  acceptedFormats,
+  maxFileSize
 }) => {
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+
+  // Dynamic text based on upload type
+  const getUploadText = () => {
+    if (title) return title;
+    
+    switch (uploadType) {
+      case 'logo':
+        return 'Upload Store Logo';
+      case 'product':
+        return 'Upload Product Images';
+      case 'general':
+        return 'Upload Images';
+      default:
+        return 'Upload Images';
+    }
+  };
+
+  const getUploadDescription = () => {
+    if (description) return description;
+    
+    switch (uploadType) {
+      case 'logo':
+        return 'Upload your store logo for branding';
+      case 'product':
+        return 'Add high-quality images of your tires and products';
+      case 'general':
+        return 'Upload images for your content';
+      default:
+        return 'Drag & drop images here, or click to select files';
+    }
+  };
+
+  const getFormatDescription = () => {
+    if (acceptedFormats && maxFileSize) {
+      return `Supports: ${acceptedFormats} (max ${maxFileSize} each)`;
+    }
+    
+    switch (uploadType) {
+      case 'logo':
+        return 'Supports: PNG, JPG, SVG (max 5MB) • Recommended: 200x80px';
+      case 'product':
+        return 'Supports: JPEG, PNG, WebP (max 10MB each)';
+      case 'general':
+        return 'Supports: JPEG, PNG, WebP (max 10MB each)';
+      default:
+        return 'Supports: JPEG, PNG, WebP (max 10MB each)';
+    }
+  };
+
+  const getMaxFilesText = () => {
+    switch (uploadType) {
+      case 'logo':
+        return 'Single logo file';
+      case 'product':
+        return `Maximum ${maxFiles} images`;
+      case 'general':
+        return `Maximum ${maxFiles} images`;
+      default:
+        return `Maximum ${maxFiles} images`;
+    }
+  };
+
+  const getCurrentImagesTitle = () => {
+    switch (uploadType) {
+      case 'logo':
+        return 'Current Logo';
+      case 'product':
+        return 'Current Images';
+      case 'general':
+        return 'Current Images';
+      default:
+        return 'Current Images';
+    }
+  };
+
+  const getNewImagesTitle = () => {
+    switch (uploadType) {
+      case 'logo':
+        return 'New Logo';
+      case 'product':
+        return 'New Images';
+      case 'general':
+        return 'New Images';
+      default:
+        return 'New Images';
+    }
+  };
+
+  const getGridClass = () => {
+    switch (uploadType) {
+      case 'logo':
+        return 'grid grid-cols-1 md:grid-cols-2 gap-4';
+      case 'product':
+        return 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4';
+      case 'general':
+        return 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4';
+      default:
+        return 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4';
+    }
+  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (disabled) return;
@@ -199,14 +309,14 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
               isDragActive ? 'text-tire-orange' : 'text-gray-400'
             }`} />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {isDragActive ? 'Drop images here' : 'Upload Product Images'}
+              {isDragActive ? 'Drop images here' : getUploadText()}
             </h3>
             <p className="text-gray-600 mb-4">
-              Drag & drop images here, or click to select files
+              {getUploadDescription()}
             </p>
             <div className="text-sm text-gray-500">
-              <p>Supports: JPEG, PNG, WebP (max 10MB each)</p>
-              <p>Maximum {maxFiles} images</p>
+              <p>{getFormatDescription()}</p>
+              <p>{getMaxFilesText()}</p>
             </div>
           </motion.div>
         </CardContent>
@@ -219,7 +329,9 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             <div className="flex items-center space-x-3">
               <Upload className="w-5 h-5 text-tire-orange animate-pulse" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">Uploading images...</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {uploadType === 'logo' ? 'Uploading logo...' : 'Uploading images...'}
+                </p>
                 <Progress value={uploadProgress} className="mt-2" />
               </div>
             </div>
@@ -230,15 +342,15 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
       {/* Existing Images from Props */}
       {existingImages.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-gray-900 mb-3">Current Images</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <h4 className="text-sm font-medium text-gray-900 mb-3">{getCurrentImagesTitle()}</h4>
+          <div className={getGridClass()}>
             {existingImages.map((imageUrl, index) => (
               <Card key={index} className="relative group">
                 <CardContent className="p-2">
                   <div className="aspect-square relative overflow-hidden rounded-lg">
                     <Image
                       src={imageUrl}
-                      alt={`Product image ${index + 1}`}
+                      alt={uploadType === 'logo' ? `Store logo` : `Product image ${index + 1}`}
                       fill
                       className="object-cover"
                     />
@@ -266,9 +378,9 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
       {images.length > 0 && (
         <div>
           <h4 className="text-sm font-medium text-gray-900 mb-3">
-            New Images ({images.length}/{maxFiles})
+            {getNewImagesTitle()} ({images.length}/{maxFiles})
           </h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className={getGridClass()}>
             <AnimatePresence>
               {images.map((image) => (
                 <motion.div

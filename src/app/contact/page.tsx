@@ -155,7 +155,9 @@ const ContactPage = () => {
                 <Phone className="w-5 h-5 mr-2" />
                 Call Now
               </Button>
-              <Button size="lg" variant="outline" className="text-black border-white hover:bg-white hover:text-tire-dark">
+              <Button 
+              onClick={() => router.push('/quote')}
+              size="lg" variant="outline" className="text-black border-white hover:bg-white hover:text-tire-dark">
                 <Calendar className="w-5 h-5 mr-2" />
                 Book Appointment
               </Button>
@@ -355,7 +357,11 @@ const ContactPage = () => {
                     Quick Actions
                   </h4>
                   <div className="space-y-4">
-                    <Button className="w-full justify-start text-left" variant="outline">
+                    <Button 
+                      className="w-full justify-start text-left" 
+                      variant="outline"
+                      onClick={() => router.push('/booking')}
+                    >
                       <Calendar className="w-5 h-5 mr-3" />
                       Schedule Appointment
                     </Button>

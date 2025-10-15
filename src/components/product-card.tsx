@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { useFavorites } from "@/lib/favorites-context";
+import { formatPrice, safeToNumber, calculateDiscountPercentage } from "@/lib/utils/price";
 import { 
   Star, 
   ShoppingCart, 
@@ -32,9 +33,10 @@ interface ProductImage {
 }
 
 interface ProductCardProps {
-  id: number;
+  id: number | string;
+  slug?: string;
   name: string;
-  brand: string;
+  brand: string | { id: string; name: string; slug: string; logo?: string; website?: string; countryOfOrigin?: string; } | null;
   price: number;
   originalPrice?: number;
   images: ProductImage[];
@@ -48,15 +50,16 @@ interface ProductCardProps {
   badgeColor?: string;
   category?: string;
   inStock?: boolean;
-  onAddToCart?: (id: number) => void;
-  onViewDetails?: (id: number) => void;
-  onToggleFavorite?: (id: number) => void;
+  onAddToCart?: (id: number | string) => void;
+  onViewDetails?: (id: number | string, slug?: string) => void;
+  onToggleFavorite?: (id: number | string) => void;
   isFavorite?: boolean;
   className?: string;
 }
 
 const ProductCard = ({
   id,
+  slug,
   name,
   brand,
   price,
@@ -96,9 +99,7 @@ const ProductCard = ({
   const swipePower = (offset: number, velocity: number) => {
     return Math.abs(offset) * velocity;
   };
-  const discountPercentage = originalPrice && originalPrice > price 
-    ? Math.round(((originalPrice - price) / originalPrice) * 100) 
-    : 0;
+  const discountPercentage = calculateDiscountPercentage(originalPrice, price);
 
   const nextImage = () => {
     setDirection(1);
@@ -439,8 +440,8 @@ const ProductCard = ({
       onHoverEnd={() => setIsHovered(false)}
     >
       <Card 
-        className={`${isListView ? 'flex flex-row h-62 w-full' : 'h-full'} hover:shadow-2xl py-0 transition-all duration-300 border-0 shadow-lg overflow-hidden bg-white cursor-pointer`}
-        onClick={() => router.push(`/product/${id}`)}
+        className={`${isListView ? 'flex flex-row h-62 w-full' : 'h-full flex flex-col'} hover:shadow-2xl py-0 transition-all duration-300 border-0 shadow-lg overflow-hidden bg-white cursor-pointer`}
+        onClick={() => router.push(`/product/${slug || id}`)}
       >
         {/* Image Section */}
         <div className={`relative ${isListView ? ' flex-shrink-0' : ''}`}>
@@ -507,7 +508,7 @@ const ProductCard = ({
         </div>
         
         {/* Content Section */}
-        <CardContent className={`${isListView ? 'p-4 flex-1 flex flex-col justify-between' : 'p-6 py-0 flex-1'}`}>
+        <CardContent className={`${isListView ? 'p-4 flex-1 flex flex-col justify-between' : 'p-6 py-0 flex-1 flex flex-col'}`}>
           {isListView ? (
             // List View Layout
             <div className="flex flex-col h-full">
@@ -516,7 +517,7 @@ const ProductCard = ({
                 {/* Brand and Rating */}
                 <div className="flex items-center justify-between">
                   <Badge variant="outline" className="text-gray-600 border-gray-300">
-                    {brand}
+                    {typeof brand === 'string' ? brand : brand?.name || 'Unknown'}
                   </Badge>
                   <div className="flex items-center space-x-1">
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
@@ -629,9 +630,9 @@ const ProductCard = ({
             // Grid View Layout (original)
             <>
               {/* Brand and Rating */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-3">
                 <Badge variant="outline" className="text-gray-600 border-gray-300">
-                  {brand}
+                  {typeof brand === 'string' ? brand : brand?.name || 'Unknown'}
                 </Badge>
                 <div className="flex items-center space-x-1">
                   <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
@@ -641,13 +642,13 @@ const ProductCard = ({
               </div>
 
               {/* Product Name */}
-              <h3 className="font-bold text-lg text-gray-900 line-clamp-2 min-h-[3.5rem] leading-tight">
+              <h3 className="font-bold text-lg text-gray-900 line-clamp-2 min-h-[3.5rem] leading-tight mb-3">
                 {name}
               </h3>
 
               {/* Specifications */}
               {(size || season || speedRating) && (
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-sm mb-3 flex-1">
                   {size && (
                     <div className="flex items-center justify-between">
                       <span className="text-gray-500">Size:</span>
@@ -673,7 +674,7 @@ const ProductCard = ({
               )}
 
               {/* Features */}
-              <div className="space-y-1">
+              <div className="space-y-1 mb-4 flex-1">
                 {features.slice(0, 3).map((feature, idx) => (
                   <div key={idx} className="text-xs text-gray-600 flex items-center">
                     <div className="w-1 h-1 bg-orange-500 rounded-full mr-2 flex-shrink-0"></div>
@@ -683,13 +684,13 @@ const ProductCard = ({
               </div>
 
               {/* Price */}
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 mt-auto">
                 <span className="text-2xl font-bold text-gray-900">
-                  €{price.toFixed(2)}
+                  {formatPrice(price)}
                 </span>
-                {originalPrice && originalPrice > price && (
+                {originalPrice && safeToNumber(originalPrice) > safeToNumber(price) && (
                   <span className="text-sm text-gray-500 line-through">
-                    €{originalPrice.toFixed(2)}
+                    {formatPrice(originalPrice)}
                   </span>
                 )}
               </div>
@@ -705,31 +706,41 @@ const ProductCard = ({
             disabled={!inStock}
             onClick={(e) => {
               e.stopPropagation();
-              const defaultSize = Array.isArray(size) ? size[0] : size || "";
-              addItem({
-                id, name, brand, price, originalPrice, images, rating, reviews,
-                size: defaultSize,
-                season: season || "All-Season", 
-                speedRating: speedRating || "H", 
-                features, 
-                badge: badge || "", 
-                badgeColor, 
-                category: category || "Passenger", 
-                inStock,
-                specifications: {
-                  pattern: "Asymmetric",
-                  construction: "Radial", 
-                  sidewallType: "Standard",
-                  runFlat: false,
-                  studded: false,
-                  reinforced: false
-                },
-                description: `${brand} ${name}`,
-                warranty: "6 years",
-                stockCount: 10,
-                model: name,
-                loadIndex: "91"
-              }, defaultSize, 1);
+              // Only add to cart if ID is numeric (legacy support)
+              if (typeof id === 'number') {
+                const defaultSize = Array.isArray(size) ? size[0] : size || "";
+                addItem({
+                  id, name, brand: typeof brand === 'string' ? brand : brand?.name || 'Unknown', price, originalPrice, images, rating, reviews,
+                  size: defaultSize,
+                  season: season || "All-Season", 
+                  speedRating: speedRating || "H", 
+                  features, 
+                  badge: badge || "", 
+                  badgeColor, 
+                  category: category || "Passenger", 
+                  inStock,
+                  specifications: {
+                    pattern: "Asymmetric",
+                    construction: "Radial", 
+                    sidewallType: "Standard",
+                    runFlat: false,
+                    studded: false,
+                    reinforced: false
+                  },
+                  description: `${typeof brand === 'string' ? brand : brand?.name || 'Unknown'} ${name}`,
+                  warranty: "6 years",
+                  stockCount: 10,
+                  model: name,
+                  loadIndex: "91"
+                }, defaultSize, 1);
+              } else {
+                // For UUID products, use the callback if provided
+                if (onAddToCart) {
+                  onAddToCart(id);
+                } else {
+                  console.log('Add to cart for UUID product:', id);
+                }
+              }
             }}
           >
             <ShoppingCart className="w-4 h-4 mr-2" />
@@ -816,7 +827,7 @@ const ProductCard = ({
                 <div>
                   <div className="flex items-center gap-3 mb-4">
                     <Badge className="bg-tire-orange text-white">
-                      {brand}
+                      {typeof brand === 'string' ? brand : brand?.name || 'Unknown'}
                     </Badge>
                     {badge && (
                       <Badge className={`${badgeColor} text-white`}>
@@ -875,17 +886,17 @@ const ProductCard = ({
                 <div className="space-y-2">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                     <span className="text-2xl sm:text-3xl font-bold text-tire-dark">
-                      €{price.toFixed(2)}
+                      {formatPrice(price)}
                     </span>
-                    {originalPrice && (
+                    {originalPrice && safeToNumber(originalPrice) > safeToNumber(price) && (
                       <span className="text-lg sm:text-xl text-gray-400 line-through">
-                        €{originalPrice.toFixed(2)}
+                        {formatPrice(originalPrice)}
                       </span>
                     )}
                   </div>
-                  {originalPrice && (
+                  {originalPrice && safeToNumber(originalPrice) > safeToNumber(price) && (
                     <div className="text-sm text-green-600 font-semibold">
-                      Save €{(originalPrice - price).toFixed(2)}
+                      Save {formatPrice(safeToNumber(originalPrice) - safeToNumber(price))}
                     </div>
                   )}
                 </div>

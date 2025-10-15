@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/header";
+import { useRouter } from "next/navigation";
 import { 
   Users, 
   Award, 
@@ -20,6 +21,8 @@ import {
 } from "lucide-react";
 
 const AboutPage = () => {
+  const router = useRouter();
+  
   const stats = [
     { number: "15+", label: "Years in Business", icon: Clock },
     { number: "50,000+", label: "Tires Sold", icon: Star },
@@ -208,7 +211,11 @@ const AboutPage = () => {
                 </p>
               </div>
               <div className="mt-8">
-                <Button size="lg" className="mr-4">
+                <Button 
+                  size="lg" 
+                  className="mr-4"
+                  onClick={() => router.push('/booking')}
+                >
                   <Calendar className="w-5 h-5 mr-2" />
                   Schedule Service
                 </Button>
@@ -447,7 +454,11 @@ const AboutPage = () => {
               Experience premium service, quality products, and expert care.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" className="bg-tire-orange hover:bg-tire-orange/90 px-8">
+              <Button 
+                size="lg" 
+                className="bg-tire-orange hover:bg-tire-orange/90 px-8"
+                onClick={() => router.push('/booking')}
+              >
                 <Calendar className="w-5 h-5 mr-2" />
                 Schedule Service
               </Button>

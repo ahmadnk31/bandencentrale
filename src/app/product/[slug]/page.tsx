@@ -33,7 +33,7 @@ import {
   Mountain
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { getTireById } from "@/lib/data";
+import { useProductBySlug, useProducts, Product } from "@/hooks/use-store-data";
 
 const ProductPage = () => {
   const params = useParams();
@@ -42,10 +42,31 @@ const ProductPage = () => {
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
 
-  // Get product data from our data store
-  const product = getTireById(Number(params.id));
+  // Get product data from API
+  const { data: product, isLoading: productLoading, error: productError } = useProductBySlug(params.slug as string);
 
-  if (!product) {
+  // Get related products from API (same season, different brands)
+  // Always call the hook to maintain hook order, but filter results based on product data
+  const { data: relatedProductsResponse } = useProducts({
+    season: product?.season || '',
+    limit: 3,
+    page: 1
+  });
+  
+  const relatedProducts = relatedProductsResponse?.data?.filter((p: Product) => p.id !== product?.id) || [];
+
+  if (productLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tire-orange mx-auto mb-4"></div>
+          <p className="text-tire-gray">Loading product...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (productError || !product) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -56,85 +77,41 @@ const ProductPage = () => {
     );
   }
 
-  const discountPercentage = product.originalPrice 
-    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+  const originalPrice = product.compareAtPrice ? parseFloat(product.compareAtPrice) : null;
+  const currentPrice = parseFloat(product.price);
+  const discountPercentage = originalPrice 
+    ? Math.round(((originalPrice - currentPrice) / originalPrice) * 100)
     : 0;
 
+  const images = product.images && product.images.length > 0 
+    ? product.images 
+    : ["https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center"];
+  
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % product.images.length);
+    if (images.length > 1) {
+      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    }
   };
 
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + product.images.length) % product.images.length);
+    if (images.length > 1) {
+      setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+    }
   };
 
   const getSeasonIcon = () => {
-    switch (product.season) {
-      case "Summer":
+    const season = product.season?.toLowerCase();
+    switch (season) {
+      case "summer":
         return <Sun className="w-5 h-5" />;
-      case "Winter":
+      case "winter":
         return <Snowflake className="w-5 h-5" />;
-      case "All-Season":
+      case "all-season":
         return <Mountain className="w-5 h-5" />;
       default:
         return <Sun className="w-5 h-5" />;
     }
   };
-
-  const relatedProducts = [
-    {
-      id: 2,
-      name: "Continental SportContact 6",
-      brand: "Continental",
-      price: 149.99,
-      originalPrice: 179.99,
-      images: [{ src: "/api/placeholder/300/300", alt: "Continental SportContact 6" }],
-      rating: 4.7,
-      reviews: 189,
-      size: "225/45R17",
-      season: "Summer" as const,
-      speedRating: "Y",
-      features: ["Sport Handling", "High Performance", "Wet Grip"],
-      badge: "Performance",
-      badgeColor: "bg-red-500",
-      category: "Performance",
-      inStock: true
-    },
-    {
-      id: 3,
-      name: "Pirelli P Zero",
-      brand: "Pirelli",
-      price: 169.99,
-      images: [{ src: "/api/placeholder/300/300", alt: "Pirelli P Zero" }],
-      rating: 4.9,
-      reviews: 156,
-      size: "225/45R17",
-      season: "Summer" as const,
-      speedRating: "Y",
-      features: ["Motorsport Heritage", "Ultimate Performance", "Precision"],
-      badge: "Premium",
-      badgeColor: "bg-purple-500",
-      category: "Performance",
-      inStock: true
-    },
-    {
-      id: 4,
-      name: "Bridgestone Potenza Sport",
-      brand: "Bridgestone",
-      price: 155.99,
-      images: [{ src: "/api/placeholder/300/300", alt: "Bridgestone Potenza Sport" }],
-      rating: 4.6,
-      reviews: 198,
-      size: "225/45R17",
-      season: "Summer" as const,
-      speedRating: "Y",
-      features: ["Racing Technology", "Enhanced Grip", "Responsive Handling"],
-      badge: "Sport",
-      badgeColor: "bg-orange-500",
-      category: "Performance",
-      inStock: true
-    }
-  ];
 
   const reviews = [
     {
@@ -187,7 +164,7 @@ const ProductPage = () => {
             <span>/</span>
             <span>Tires</span>
             <span>/</span>
-            <span>{product.brand}</span>
+            <span>{typeof product.brand === 'string' ? product.brand : product.brand?.name || 'Unknown'}</span>
             <span>/</span>
             <span className="text-tire-dark font-medium">{product.name}</span>
           </div>
@@ -209,8 +186,8 @@ const ProductPage = () => {
                 <AnimatePresence mode="wait">
                   <motion.img
                     key={currentImageIndex}
-                    src={product.images[currentImageIndex].src}
-                    alt={product.images[currentImageIndex].alt}
+                    src={images[currentImageIndex] || "/api/placeholder/400/400"}
+                    alt={product.name}
                     className="w-full h-full object-cover"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -220,7 +197,7 @@ const ProductPage = () => {
                 </AnimatePresence>
 
                 {/* Navigation arrows */}
-                {product.images.length > 1 && (
+                {images.length > 1 && (
                   <>
                     <Button
                       variant="ghost"
@@ -243,9 +220,9 @@ const ProductPage = () => {
 
                 {/* Badges */}
                 <div className="absolute top-4 left-4 flex flex-col gap-2">
-                  {product.badge && (
-                    <Badge className={`${product.badgeColor} text-white`}>
-                      {product.badge}
+                  {product.isFeatured && (
+                    <Badge className="bg-tire-orange text-white">
+                      Featured
                     </Badge>
                   )}
                   {discountPercentage > 0 && (
@@ -257,9 +234,9 @@ const ProductPage = () => {
               </motion.div>
 
               {/* Thumbnail Navigation */}
-              {product.images.length > 1 && (
+              {images.length > 1 && (
                 <div className="flex gap-3 overflow-x-auto pb-2">
-                  {product.images.map((image, index) => (
+                  {images.map((image: string, index: number) => (
                     <button
                       key={index}
                       onClick={() => setCurrentImageIndex(index)}
@@ -270,8 +247,8 @@ const ProductPage = () => {
                       }`}
                     >
                       <img
-                        src={image.src}
-                        alt={image.alt}
+                        src={image}
+                        alt={`${product.name} ${index + 1}`}
                         className="w-full h-full object-cover"
                       />
                     </button>
@@ -286,18 +263,23 @@ const ProductPage = () => {
               <div>
                 <div className="flex items-center gap-3 mb-3">
                   <Badge className="bg-tire-orange text-white text-sm">
-                    {product.brand}
+                    {typeof product.brand === 'string' ? product.brand : product.brand?.name || 'Unknown Brand'}
                   </Badge>
                   <div className="flex items-center gap-2 text-tire-gray">
                     {getSeasonIcon()}
-                    <span className="text-sm">{product.season}</span>
+                    <span className="text-sm">
+                      {product.season === 'all-season' ? 'All-Season' : 
+                       product.season === 'summer' ? 'Summer' :
+                       product.season === 'winter' ? 'Winter' : 
+                       'All-Season'}
+                    </span>
                   </div>
                 </div>
                 <h1 className="text-3xl lg:text-4xl font-bold text-tire-dark mb-4">
                   {product.name}
                 </h1>
                 <p className="text-tire-gray leading-relaxed">
-                  {product.description}
+                  {product.description || product.shortDescription || 'High-quality tire for superior performance and safety.'}
                 </p>
               </div>
 
@@ -309,15 +291,15 @@ const ProductPage = () => {
                       <Star 
                         key={i} 
                         className={`w-5 h-5 ${
-                          i < Math.floor(product.rating) 
+                          i < 4 
                             ? 'text-yellow-400 fill-current' 
                             : 'text-gray-300'
                         }`} 
                       />
                     ))}
                   </div>
-                  <span className="font-semibold text-tire-dark">{product.rating}</span>
-                  <span className="text-tire-gray">({product.reviews} reviews)</span>
+                  <span className="font-semibold text-tire-dark">4.5</span>
+                  <span className="text-tire-gray">(148 reviews)</span>
                 </div>
               </div>
 
@@ -325,17 +307,17 @@ const ProductPage = () => {
               <div className="space-y-2">
                 <div className="flex items-center gap-4">
                   <span className="text-4xl font-bold text-tire-dark">
-                    €{product.price}
+                    €{currentPrice.toFixed(2)}
                   </span>
-                  {product.originalPrice && (
+                  {originalPrice && (
                     <span className="text-2xl text-gray-400 line-through">
-                      €{product.originalPrice}
+                      €{originalPrice.toFixed(2)}
                     </span>
                   )}
                 </div>
-                {product.originalPrice && (
+                {originalPrice && (
                   <div className="text-lg text-green-600 font-semibold">
-                    Save €{(product.originalPrice - product.price).toFixed(2)}
+                    Save €{(originalPrice - currentPrice).toFixed(2)}
                   </div>
                 )}
                 <p className="text-sm text-tire-gray">Price per tire, installation available</p>
@@ -362,19 +344,19 @@ const ProductPage = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-tire-gray">Speed Rating:</span>
-                    <span className="font-semibold text-tire-dark ml-2">{product.speedRating}</span>
+                    <span className="font-semibold text-tire-dark ml-2">{product.speedRating || 'H'}</span>
                   </div>
                   <div>
                     <span className="text-tire-gray">Load Index:</span>
-                    <span className="font-semibold text-tire-dark ml-2">{product.loadIndex}</span>
+                    <span className="font-semibold text-tire-dark ml-2">{product.loadIndex || '91'}</span>
                   </div>
                   <div>
-                    <span className="text-tire-gray">Pattern:</span>
-                    <span className="font-semibold text-tire-dark ml-2">{product.specifications.pattern}</span>
+                    <span className="text-tire-gray">Fuel Efficiency:</span>
+                    <span className="font-semibold text-tire-dark ml-2">{product.fuelEfficiency || 'C'}</span>
                   </div>
                   <div>
-                    <span className="text-tire-gray">Construction:</span>
-                    <span className="font-semibold text-tire-dark ml-2">{product.specifications.construction}</span>
+                    <span className="text-tire-gray">Wet Grip:</span>
+                    <span className="font-semibold text-tire-dark ml-2">{product.wetGrip || 'A'}</span>
                   </div>
                 </div>
               </div>
@@ -406,7 +388,7 @@ const ProductPage = () => {
                     </Button>
                   </div>
                   <div className="text-sm text-tire-gray">
-                    Total: €{(product.price * quantity).toFixed(2)}
+                    Total: €{(currentPrice * quantity).toFixed(2)}
                   </div>
                 </div>
               </div>
@@ -466,7 +448,7 @@ const ProductPage = () => {
                       <AlertCircle className="w-5 h-5 text-red-600" />
                     )}
                     <span className={`font-semibold ${product.inStock ? 'text-green-700' : 'text-red-700'}`}>
-                      {product.inStock ? `In Stock (${product.stockCount} available)` : 'Currently Out of Stock'}
+                      {product.inStock ? `In Stock (${product.stockQuantity || 0} available)` : 'Currently Out of Stock'}
                     </span>
                   </div>
                   {product.inStock && (
@@ -483,7 +465,7 @@ const ProductPage = () => {
                   </div>
                   <div className="flex items-center gap-2 text-tire-gray">
                     <Shield className="w-5 h-5" />
-                    <span>{product.warranty} warranty</span>
+                    <span>2-year warranty</span>
                   </div>
                   <div className="flex items-center gap-2 text-tire-gray">
                     <RotateCcw className="w-5 h-5" />
@@ -504,7 +486,7 @@ const ProductPage = () => {
               <TabsList className="inline-flex h-12 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground min-w-full sm:min-w-0 sm:grid sm:grid-cols-4 sm:w-full">
                 <TabsTrigger value="features" className="whitespace-nowrap px-3 py-1.5 text-sm font-medium">Features</TabsTrigger>
                 <TabsTrigger value="specifications" className="whitespace-nowrap px-3 py-1.5 text-sm font-medium">Specifications</TabsTrigger>
-                <TabsTrigger value="reviews" className="whitespace-nowrap px-3 py-1.5 text-sm font-medium">Reviews ({product.reviews})</TabsTrigger>
+                <TabsTrigger value="reviews" className="whitespace-nowrap px-3 py-1.5 text-sm font-medium">Reviews (148)</TabsTrigger>
                 <TabsTrigger value="installation" className="whitespace-nowrap px-3 py-1.5 text-sm font-medium">Installation</TabsTrigger>
               </TabsList>
             </div>
@@ -514,12 +496,17 @@ const ProductPage = () => {
                 <CardContent className="p-0">
                   <h3 className="text-2xl font-bold text-tire-dark mb-6">Key Features</h3>
                   <div className="grid md:grid-cols-2 gap-6">
-                    {product.features.map((feature, index) => (
+                    {(product.features || []).map((feature: string, index: number) => (
                       <div key={index} className="flex items-start gap-4">
                         <div className="w-3 h-3 bg-tire-orange rounded-full mt-2 flex-shrink-0"></div>
                         <p className="text-tire-gray leading-relaxed">{feature}</p>
                       </div>
                     ))}
+                    {(!product.features || product.features.length === 0) && (
+                      <div className="col-span-2">
+                        <p className="text-tire-gray">Premium tire with advanced technology for superior performance and safety.</p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -533,7 +520,12 @@ const ProductPage = () => {
                     <div className="space-y-4">
                       <div className="flex justify-between border-b pb-2">
                         <span className="text-tire-gray">Season Type:</span>
-                        <span className="font-semibold text-tire-dark">{product.season}</span>
+                        <span className="font-semibold text-tire-dark">
+                          {product.season === 'all-season' ? 'All-Season' : 
+                           product.season === 'summer' ? 'Summer' :
+                           product.season === 'winter' ? 'Winter' : 
+                           'All-Season'}
+                        </span>
                       </div>
                       <div className="flex justify-between border-b pb-2">
                         <span className="text-tire-gray">Speed Rating:</span>
@@ -544,26 +536,26 @@ const ProductPage = () => {
                         <span className="font-semibold text-tire-dark">{product.loadIndex}</span>
                       </div>
                       <div className="flex justify-between border-b pb-2">
-                        <span className="text-tire-gray">Tread Pattern:</span>
-                        <span className="font-semibold text-tire-dark">{product.specifications.pattern}</span>
+                        <span className="text-tire-gray">Tire Type:</span>
+                        <span className="font-semibold text-tire-dark">{product.tireType || 'Radial'}</span>
                       </div>
                     </div>
                     <div className="space-y-4">
                       <div className="flex justify-between border-b pb-2">
-                        <span className="text-tire-gray">Construction:</span>
-                        <span className="font-semibold text-tire-dark">{product.specifications.construction}</span>
+                        <span className="text-tire-gray">Fuel Efficiency:</span>
+                        <span className="font-semibold text-tire-dark">{product.fuelEfficiency || 'C'}</span>
                       </div>
                       <div className="flex justify-between border-b pb-2">
-                        <span className="text-tire-gray">Sidewall Type:</span>
-                        <span className="font-semibold text-tire-dark">{product.specifications.sidewallType}</span>
+                        <span className="text-tire-gray">Wet Grip:</span>
+                        <span className="font-semibold text-tire-dark">{product.wetGrip || 'A'}</span>
+                      </div>
+                      <div className="flex justify-between border-b pb-2">
+                        <span className="text-tire-gray">Noise Level:</span>
+                        <span className="font-semibold text-tire-dark">{product.noiseLevel || '70'} dB</span>
                       </div>
                       <div className="flex justify-between border-b pb-2">
                         <span className="text-tire-gray">Run Flat:</span>
-                        <span className="font-semibold text-tire-dark">{product.specifications.runFlat ? 'Yes' : 'No'}</span>
-                      </div>
-                      <div className="flex justify-between border-b pb-2">
-                        <span className="text-tire-gray">Reinforced:</span>
-                        <span className="font-semibold text-tire-dark">{product.specifications.reinforced ? 'Yes' : 'No'}</span>
+                        <span className="font-semibold text-tire-dark">{product.runFlat ? 'Yes' : 'No'}</span>
                       </div>
                     </div>
                   </div>
@@ -690,43 +682,65 @@ const ProductPage = () => {
       </section>
 
       {/* Related Products */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            className="text-center mb-12"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-3xl lg:text-4xl font-bold text-tire-dark mb-4">
-              You Might Also Like
-            </h2>
-            <p className="text-xl text-tire-gray">
-              Similar high-performance tires from premium brands
-            </p>
-          </motion.div>
+      {relatedProducts && relatedProducts.length > 0 && (
+        <section className="py-20 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <motion.div
+              className="text-center mb-12"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="text-3xl lg:text-4xl font-bold text-tire-dark mb-4">
+                You Might Also Like
+              </h2>
+              <p className="text-xl text-tire-gray">
+                Similar high-performance tires from premium brands
+              </p>
+            </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {relatedProducts.map((relatedProduct, index) => (
-              <motion.div
-                key={relatedProduct.id}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                viewport={{ once: true }}
-              >
-                <ProductCard
-                  {...relatedProduct}
-                  onAddToCart={(id) => console.log("Add to cart:", id)}
-                  onViewDetails={(id) => router.push(`/product/${id}`)}
-                  onToggleFavorite={(id) => console.log("Toggle favorite:", id)}
-                />
-              </motion.div>
-            ))}
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {relatedProducts.map((relatedProduct: Product, index: number) => (
+                <motion.div
+                  key={relatedProduct.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                  viewport={{ once: true }}
+                >
+                  <ProductCard
+                    id={relatedProduct.id}
+                    slug={relatedProduct.slug}
+                    name={relatedProduct.name}
+                    brand={relatedProduct.brand || "Unknown"}
+                    price={parseFloat(relatedProduct.price)}
+                    originalPrice={relatedProduct.compareAtPrice ? parseFloat(relatedProduct.compareAtPrice) : undefined}
+                    images={relatedProduct.images && relatedProduct.images.length > 0 ? relatedProduct.images : [
+                      { src: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&h=300&fit=crop&crop=center", alt: `${relatedProduct.name} - Tire Image` }
+                    ]}
+                    rating={4.5}
+                    reviews={Math.floor(Math.random() * 200) + 50}
+                    size={relatedProduct.size}
+                    season={
+                      relatedProduct.season === 'all-season' ? 'All-Season' :
+                      relatedProduct.season === 'summer' ? 'Summer' :
+                      relatedProduct.season === 'winter' ? 'Winter' :
+                      'All-Season'
+                    }
+                    speedRating={relatedProduct.speedRating || undefined}
+                    features={relatedProduct.features || []}
+                    inStock={relatedProduct.inStock}
+                    onAddToCart={(id) => console.log("Add to cart:", id)}
+                    onViewDetails={(id, slug) => router.push(`/product/${slug || id}`)}
+                    onToggleFavorite={(id) => console.log("Toggle favorite:", id)}
+                  />
+                </motion.div>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 };

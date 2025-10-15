@@ -1,0 +1,38 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with rounded corners for Apple -->
+  <rect width="180" height="180" rx="32" fill="#ea580c"/>
+  
+  <!-- Tire outer ring -->
+  <circle cx="90" cy="90" r="70" fill="none" stroke="#ffffff" stroke-width="8"/>
+  
+  <!-- Tire middle ring -->
+  <circle cx="90" cy="90" r="45" fill="none" stroke="#ffffff" stroke-width="6"/>
+  
+  <!-- Tire inner hub -->
+  <circle cx="90" cy="90" r="25" fill="#ffffff"/>
+  
+  <!-- Hub center -->
+  <circle cx="90" cy="90" r="12" fill="#ea580c"/>
+  
+  <!-- Brand text -->
+  <text x="90" y="35" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">BANDEN</text>
+  <text x="90" y="155" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">CENTRALE</text>
+  
+  <!-- Tread pattern lines -->
+  <line x1="90" y1="20" x2="90" y2="35" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+  <line x1="90" y1="145" x2="90" y2="160" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+  <line x1="20" y1="90" x2="35" y2="90" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+  <line x1="145" y1="90" x2="160" y2="90" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+  
+  <!-- Diagonal tread lines -->
+  <line x1="43" y1="43" x2="53" y2="53" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="127" y1="127" x2="137" y2="137" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="137" y1="43" x2="127" y2="53" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="53" y1="127" x2="43" y2="137" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Additional smaller tread marks -->
+  <line x1="90" y1="35" x2="90" y2="40" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+  <line x1="90" y1="140" x2="90" y2="145" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+  <line x1="35" y1="90" x2="40" y2="90" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+  <line x1="140" y1="90" x2="145" y2="90" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+</svg>
