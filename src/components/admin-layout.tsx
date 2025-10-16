@@ -23,7 +23,9 @@ import {
   Shield,
   Home,
   Tags,
-  Building2
+  Building2,
+  Globe,
+  MessageSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSession, signOut } from "@/lib/auth/client";
+import { isAdmin } from "@/lib/auth/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface AdminLayoutProps {
@@ -49,9 +52,9 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const { data: session, isPending } = useSession();
   const router = useRouter();
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated or not admin
   useEffect(() => {
-    if (!isPending && !session) {
+    if (!isPending && (!session || !isAdmin(session))) {
       router.push('/login?from=/admin');
     }
   }, [session, isPending, router]);
@@ -74,15 +77,15 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
     );
   }
 
-  // Show access denied if not authenticated
-  if (!session) {
+  // Show access denied if not authenticated or not admin
+  if (!session || !isAdmin(session)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="max-w-md w-full mx-auto">
           <Alert>
             <Shield className="h-4 w-4" />
             <AlertDescription>
-              Access denied. Please sign in to view the admin panel.
+              Access denied. Admin privileges required to view this page.
             </AlertDescription>
           </Alert>
         </div>
@@ -93,11 +96,13 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const navigation = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard, current: true },
     { name: "Hero Banners", href: "/admin/hero-banners", icon: Home, current: false },
+    { name: "Pages", href: "/admin/pages", icon: Globe, current: false },
     { name: "Products", href: "/admin/products", icon: Package, current: false },
     { name: "Categories", href: "/admin/categories", icon: Tags, current: false },
     { name: "Brands", href: "/admin/brands", icon: Building2, current: false },
     { name: "Orders", href: "/admin/orders", icon: ShoppingCart, current: false, badge: "3" },
     { name: "Users", href: "/admin/users", icon: Users, current: false },
+    { name: "Reviews", href: "/admin/reviews", icon: MessageSquare, current: false },
     { name: "Appointments", href: "/admin/appointments", icon: Calendar, current: false },
     { name: "Quotes", href: "/admin/quotes", icon: FileText, current: false },
     { name: "Service Categories", href: "/admin/service-categories", icon: Tags, current: false },

@@ -6,8 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import Header from "@/components/header";
 import ProductCard from "@/components/product-card";
+import { useCart } from "@/lib/cart-context";
+import { useFavorites } from "@/lib/favorites-context";
 import { 
   Star, 
   ShoppingCart, 
@@ -30,20 +34,36 @@ import {
   Gauge,
   Snowflake,
   Sun,
-  Mountain
+  Mountain,
+  Send
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useProductBySlug, useProducts, Product } from "@/hooks/use-store-data";
+import { useProductBySlug, useProducts, useProductReviews, Product } from "@/hooks/use-store-data";
+import { useSession } from "@/lib/auth/client";
 
 const ProductPage = () => {
   const params = useParams();
   const router = useRouter();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewName, setReviewName] = useState("");
+  const [reviewEmail, setReviewEmail] = useState("");
+  
+  // Cart and Favorites contexts
+  const { addItem } = useCart();
+  const { toggleFavorite, isFavorite } = useFavorites();
+  
+  // Auth session
+  const { data: session } = useSession();
 
   // Get product data from API
   const { data: product, isLoading: productLoading, error: productError } = useProductBySlug(params.slug as string);
+
+  // Get product reviews
+  const { data: reviewsResponse, refetch: refetchReviews } = useProductReviews(product?.id || '', { limit: 10 });
+  const productReviews = reviewsResponse?.data || [];
 
   // Get related products from API (same season, different brands)
   // Always call the hook to maintain hook order, but filter results based on product data
@@ -110,6 +130,96 @@ const ProductPage = () => {
         return <Mountain className="w-5 h-5" />;
       default:
         return <Sun className="w-5 h-5" />;
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (!product) return;
+    
+    // Convert product to TireData format expected by cart
+    const tireData = {
+      id: typeof product.id === 'string' ? parseInt(product.id) : Number(product.id),
+      name: product.name,
+      brand: typeof product.brand === 'string' ? product.brand : product.brand?.name || 'Unknown',
+      model: product.name,
+      price: parseFloat(product.price),
+      originalPrice: product.compareAtPrice ? parseFloat(product.compareAtPrice) : undefined,
+      images: Array.isArray(product.images) 
+        ? product.images.map(img => ({ src: img, alt: product.name }))
+        : [{ src: product.images || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center', alt: product.name }],
+      rating: 4.5, // Default rating
+      reviews: 148, // Default review count
+      size: product.size || '',
+      season: (product.season === 'summer' ? 'Summer' : 
+               product.season === 'winter' ? 'Winter' : 
+               'All-Season') as "Summer" | "Winter" | "All-Season",
+      speedRating: product.speedRating || 'H',
+      loadIndex: product.loadIndex?.toString() || '91',
+      features: Array.isArray(product.features) ? product.features : [],
+      specifications: {
+        pattern: 'Asymmetric',
+        construction: 'Radial',
+        sidewallType: 'Standard',
+        runFlat: product.runFlat || false,
+        studded: false,
+        reinforced: false
+      },
+      description: product.description || `${typeof product.brand === 'string' ? product.brand : product.brand?.name || 'Premium'} ${product.name}`,
+      warranty: '6 years',
+      category: typeof product.category === 'string' ? product.category : product.category?.name || 'Tires',
+      inStock: product.inStock,
+      stockCount: product.stockQuantity || 10
+    };
+
+    addItem(tireData, product.size || '', quantity);
+  };
+
+  const handleSubmitReview = async () => {
+    const userName = session?.user?.name || reviewName;
+    
+    if (!reviewText.trim() || (!session?.user && (!reviewName.trim() || !reviewEmail.trim()))) return;
+    
+    try {
+      const reviewData = {
+        userId: session?.user?.id || null,
+        productId: product?.id,
+        rating: reviewRating,
+        title: null, // You could add a title field if needed
+        content: reviewText,
+        reviewerName: session?.user ? null : reviewName,
+        reviewerEmail: session?.user ? null : reviewEmail,
+      };
+
+      const response = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(reviewData),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Reset form
+        setReviewText("");
+        if (!session?.user) {
+          setReviewName("");
+          setReviewEmail("");
+        }
+        setReviewRating(5);
+        
+        // Show success message
+        alert('Review submitted successfully! It will be reviewed by our team before being published.');
+        
+        // Refetch reviews to show any immediately approved reviews
+        refetchReviews();
+      } else {
+        alert(result.error || 'Failed to submit review');
+      }
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      alert('Failed to submit review. Please try again.');
     }
   };
 
@@ -399,6 +509,7 @@ const ProductPage = () => {
                   size="lg" 
                   className="w-full bg-tire-gradient hover:opacity-90 text-white py-4 text-lg"
                   disabled={!product.inStock}
+                  onClick={handleAddToCart}
                 >
                   <ShoppingCart className="w-6 h-6 mr-2" />
                   {product.inStock ? 'Add to Cart' : 'Out of Stock'}
@@ -426,10 +537,10 @@ const ProductPage = () => {
                     variant="outline" 
                     size="lg" 
                     className="py-4"
-                    onClick={() => setIsFavorite(!isFavorite)}
+                    onClick={() => toggleFavorite(product.id)}
                   >
-                    <Heart className={`w-5 h-5 mr-2 ${isFavorite ? 'fill-current text-red-500' : ''}`} />
-                    {isFavorite ? 'Favorited' : 'Add to Favorites'}
+                    <Heart className={`w-5 h-5 mr-2 ${isFavorite(product.id) ? 'fill-current text-red-500' : ''}`} />
+                    {isFavorite(product.id) ? 'Favorited' : 'Add to Favorites'}
                   </Button>
                   <Button variant="outline" size="lg" className="py-4">
                     <Share2 className="w-5 h-5 mr-2" />
@@ -486,7 +597,9 @@ const ProductPage = () => {
               <TabsList className="inline-flex h-12 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground min-w-full sm:min-w-0 sm:grid sm:grid-cols-4 sm:w-full">
                 <TabsTrigger value="features" className="whitespace-nowrap px-3 py-1.5 text-sm font-medium">Features</TabsTrigger>
                 <TabsTrigger value="specifications" className="whitespace-nowrap px-3 py-1.5 text-sm font-medium">Specifications</TabsTrigger>
-                <TabsTrigger value="reviews" className="whitespace-nowrap px-3 py-1.5 text-sm font-medium">Reviews (148)</TabsTrigger>
+                <TabsTrigger value="reviews" className="whitespace-nowrap px-3 py-1.5 text-sm font-medium">
+                  Reviews ({reviewsResponse?.pagination?.totalCount || 0})
+                </TabsTrigger>
                 <TabsTrigger value="installation" className="whitespace-nowrap px-3 py-1.5 text-sm font-medium">Installation</TabsTrigger>
               </TabsList>
             </div>
@@ -568,52 +681,160 @@ const ProductPage = () => {
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-2xl font-bold text-tire-dark">Customer Reviews</h3>
-                    <Button variant="outline">Write a Review</Button>
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        const form = document.getElementById('review-form');
+                        if (form) {
+                          form.scrollIntoView({ behavior: 'smooth' });
+                        }
+                      }}
+                    >
+                      Write a Review
+                    </Button>
+                  </div>
+
+                  {/* Write Review Form */}
+                  <div id="review-form" className="bg-gray-50 rounded-lg p-6 mb-8">
+                    <h4 className="text-lg font-semibold text-tire-dark mb-4">Write Your Review</h4>
+                    <div className="space-y-4">
+                      {!session?.user && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-tire-dark mb-2">
+                              Your Name
+                            </label>
+                            <Input
+                              value={reviewName}
+                              onChange={(e) => setReviewName(e.target.value)}
+                              placeholder="Enter your name"
+                              className="w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-tire-dark mb-2">
+                              Your Email
+                            </label>
+                            <Input
+                              type="email"
+                              value={reviewEmail}
+                              onChange={(e) => setReviewEmail(e.target.value)}
+                              placeholder="Enter your email"
+                              className="w-full"
+                            />
+                          </div>
+                        </>
+                      )}
+                      
+                      {session?.user && (
+                        <div className="bg-white rounded-lg p-3 border">
+                          <p className="text-sm text-tire-gray">
+                            Reviewing as: <span className="font-semibold text-tire-dark">{session.user.name}</span>
+                          </p>
+                        </div>
+                      )}
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-tire-dark mb-2">
+                          Rating
+                        </label>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setReviewRating(star)}
+                              className={`w-8 h-8 rounded transition-colors ${
+                                star <= reviewRating 
+                                  ? 'text-yellow-400' 
+                                  : 'text-gray-300'
+                              }`}
+                            >
+                              <Star className={`w-full h-full ${
+                                star <= reviewRating ? 'fill-current' : ''
+                              }`} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-tire-dark mb-2">
+                          Your Review
+                        </label>
+                        <Textarea
+                          value={reviewText}
+                          onChange={(e) => setReviewText(e.target.value)}
+                          placeholder="Share your experience with this tire..."
+                          rows={4}
+                          className="w-full"
+                        />
+                      </div>
+                      
+                      <Button 
+                        onClick={handleSubmitReview}
+                        disabled={!reviewText.trim() || (!session?.user && (!reviewName.trim() || !reviewEmail.trim()))}
+                        className="bg-tire-gradient hover:opacity-90 text-white"
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        Submit Review
+                      </Button>
+                    </div>
                   </div>
                   
                   <div className="space-y-6">
-                    {reviews.map((review) => (
-                      <div key={review.id} className="border-b pb-6 last:border-b-0">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <div className="flex items-center gap-3 mb-2">
-                              <span className="font-semibold text-tire-dark">{review.name}</span>
-                              {review.verified && (
-                                <Badge variant="outline" className="text-xs">
-                                  <CheckCircle className="w-3 h-3 mr-1" />
-                                  Verified Purchase
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star 
-                                    key={i} 
-                                    className={`w-4 h-4 ${
-                                      i < review.rating 
-                                        ? 'text-yellow-400 fill-current' 
-                                        : 'text-gray-300'
-                                    }`} 
-                                  />
-                                ))}
+                    {productReviews.length > 0 ? (
+                      productReviews.map((review) => (
+                        <div key={review.id} className="border-b pb-6 last:border-b-0">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <div className="flex items-center gap-3 mb-2">
+                                <span className="font-semibold text-tire-dark">
+                                  {review.userName || review.reviewerName || 'Anonymous'}
+                                </span>
+                                {review.isVerifiedPurchase && (
+                                  <Badge variant="outline" className="text-xs">
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Verified Purchase
+                                  </Badge>
+                                )}
                               </div>
-                              <span className="text-sm text-tire-gray">{review.date}</span>
+                              <div className="flex items-center gap-2">
+                                <div className="flex">
+                                  {[...Array(5)].map((_, i) => (
+                                    <Star 
+                                      key={i} 
+                                      className={`w-4 h-4 ${
+                                        i < review.rating 
+                                          ? 'text-yellow-400 fill-current' 
+                                          : 'text-gray-300'
+                                      }`} 
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-sm text-tire-gray">
+                                  {new Date(review.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
                             </div>
                           </div>
+                          {review.title && (
+                            <h4 className="font-semibold text-tire-dark mb-2">{review.title}</h4>
+                          )}
+                          <p className="text-tire-gray leading-relaxed mb-3">{review.content}</p>
+                          <div className="flex items-center gap-4 text-sm text-tire-gray">
+                            <button className="hover:text-tire-dark transition-colors">
+                              Helpful ({review.helpfulCount || 0})
+                            </button>
+                          </div>
                         </div>
-                        <h4 className="font-semibold text-tire-dark mb-2">{review.title}</h4>
-                        <p className="text-tire-gray leading-relaxed mb-3">{review.comment}</p>
-                        <div className="flex items-center gap-4 text-sm text-tire-gray">
-                          <button className="hover:text-tire-dark transition-colors">
-                            Helpful ({review.helpful})
-                          </button>
-                          <button className="hover:text-tire-dark transition-colors">
-                            Reply
-                          </button>
-                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-tire-gray mb-4">No reviews yet for this product.</p>
+                        <p className="text-sm text-tire-gray">Be the first to write a review!</p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </CardContent>
               </Card>

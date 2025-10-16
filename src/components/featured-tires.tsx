@@ -1,10 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { useProducts, Product } from "@/hooks/use-store-data";
 import { 
@@ -43,6 +40,7 @@ const FeaturedTires = () => {
   const mockTires = [
     {
       id: 1,
+      slug: "michelin-pilot-sport-4s",
       name: "Michelin Pilot Sport 4S",
       brand: "Michelin",
       price: 289.99,
@@ -65,6 +63,7 @@ const FeaturedTires = () => {
     },
     {
       id: 2,
+      slug: "continental-wintercontact-ts-870",
       name: "Continental WinterContact TS 870",
       brand: "Continental",
       price: 199.99,
@@ -86,6 +85,7 @@ const FeaturedTires = () => {
     },
     {
       id: 3,
+      slug: "bridgestone-turanza-t005",
       name: "Bridgestone Turanza T005",
       brand: "Bridgestone",
       price: 159.99,
@@ -108,6 +108,7 @@ const FeaturedTires = () => {
     },
     {
       id: 4,
+      slug: "pirelli-p-zero",
       name: "Pirelli P Zero",
       brand: "Pirelli",
       price: 349.99,
@@ -136,8 +137,8 @@ const FeaturedTires = () => {
     // Implement cart logic here
   };
 
-  const handleViewDetails = (id: number | string) => {
-    router.push(`/product/${id}`);
+  const handleViewDetails = (id: number | string, slug?: string) => {
+    router.push(`/product/${slug || id}`);
   };
 
   const handleToggleFavorite = (id: number | string) => {
@@ -204,6 +205,7 @@ const FeaturedTires = () => {
               <ProductCard
                 key={tire.id}
                 id={tire.id}
+                slug={tire.slug}
                 name={tire.name}
                 brand={tire.brand || "Unknown"}
                 price={parseFloat(tire.price)}

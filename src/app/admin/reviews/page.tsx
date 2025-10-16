@@ -74,6 +74,7 @@ interface ReviewFilters {
   verified: string;
   sortBy: string;
   sortOrder: 'asc' | 'desc';
+  page: number;
 }
 
 export default function ReviewsPage() {
@@ -87,6 +88,7 @@ export default function ReviewsPage() {
   const [reviewToDelete, setReviewToDelete] = useState<Review | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [adminResponse, setAdminResponse] = useState('');
+  const [totalPages, setTotalPages] = useState(1);
   
   // Filter states
   const [filters, setFilters] = useState<ReviewFilters>({
@@ -96,7 +98,8 @@ export default function ReviewsPage() {
     type: 'all',
     verified: 'all',
     sortBy: 'createdAt',
-    sortOrder: 'desc'
+    sortOrder: 'desc',
+    page: 1
   });
 
   useEffect(() => {
@@ -106,75 +109,81 @@ export default function ReviewsPage() {
   const loadReviews = async () => {
     setLoading(true);
     try {
-      // Simulate API call
-      const mockReviews: Review[] = [
-        {
-          id: '1',
-          userId: 'user1',
-          customerName: 'John Doe',
-          customerEmail: 'john.doe@example.com',
-          productId: 'prod1',
-          productName: 'Michelin Pilot Sport 4S',
-          orderId: 'order1',
-          rating: 5,
-          title: 'Excellent tires!',
-          comment: 'These tires are amazing. Great grip in both wet and dry conditions. Highly recommend!',
-          status: 'approved',
-          isVerifiedPurchase: true,
-          helpfulCount: 12,
-          notHelpfulCount: 1,
-          adminResponse: 'Thank you for your feedback! We\'re glad you\'re satisfied with your purchase.',
-          createdAt: '2024-03-15T10:30:00Z',
-          updatedAt: '2024-03-15T14:20:00Z'
-        },
-        {
-          id: '2',
-          userId: 'user2',
-          customerName: 'Jane Smith',
-          customerEmail: 'jane.smith@example.com',
-          serviceId: 'service1',
-          serviceName: 'Tire Installation',
-          rating: 4,
-          title: 'Good service',
-          comment: 'Professional installation. The team was knowledgeable and efficient. Only minor delay.',
-          status: 'pending',
-          isVerifiedPurchase: true,
-          helpfulCount: 5,
-          notHelpfulCount: 0,
-          createdAt: '2024-03-18T15:45:00Z',
-          updatedAt: '2024-03-18T15:45:00Z'
-        },
-        {
-          id: '3',
-          customerName: 'Anonymous User',
-          customerEmail: 'guest@example.com',
-          productId: 'prod2',
-          productName: 'Continental WinterContact',
-          rating: 2,
-          title: 'Not impressed',
-          comment: 'Expected better performance. Tires are noisy and wear seems faster than advertised.',
-          status: 'approved',
-          isVerifiedPurchase: false,
-          helpfulCount: 3,
-          notHelpfulCount: 8,
-          createdAt: '2024-03-12T09:15:00Z',
-          updatedAt: '2024-03-12T16:30:00Z'
-        }
-      ];
+      const queryParams = new URLSearchParams({
+        page: filters.page.toString(),
+        limit: '10',
+        ...(filters.search && { search: filters.search }),
+        ...(filters.status && filters.status !== 'all' && { status: filters.status }),
+        ...(filters.rating && filters.rating !== 'all' && { rating: filters.rating }),
+      });
 
-      const mockStats: ReviewStats = {
-        totalReviews: 284,
-        pendingReviews: 12,
-        averageRating: 4.3,
-        approvedReviews: 245,
-        rejectedReviews: 15,
-        spamReviews: 12
-      };
+      const response = await fetch(`/api/reviews?${queryParams}`);
+      const result = await response.json();
 
-      setReviews(mockReviews);
-      setStats(mockStats);
+      if (result.success) {
+        // Transform API response to match component interface
+        const transformedReviews: Review[] = result.data.map((review: any) => ({
+          id: review.id,
+          userId: review.userId,
+          customerName: review.userName || review.reviewerName || 'Anonymous',
+          customerEmail: review.userEmail || review.reviewerEmail || '',
+          productId: review.productId,
+          productName: review.productName,
+          serviceId: review.serviceId,
+          serviceName: review.serviceName,
+          orderId: review.orderId,
+          rating: review.rating,
+          title: review.title || '',
+          comment: review.content,
+          status: review.status,
+          isVerifiedPurchase: review.isVerifiedPurchase,
+          helpfulCount: review.helpfulCount || 0,
+          notHelpfulCount: 0, // Not in DB schema yet
+          adminResponse: '', // Not implemented yet
+          createdAt: review.createdAt,
+          updatedAt: review.updatedAt,
+        }));
+
+        setReviews(transformedReviews);
+        setTotalPages(result.pagination.totalPages);
+
+        // Calculate stats from the data
+        const stats: ReviewStats = {
+          totalReviews: result.pagination.totalCount,
+          pendingReviews: transformedReviews.filter(r => r.status === 'pending').length,
+          approvedReviews: transformedReviews.filter(r => r.status === 'approved').length,
+          rejectedReviews: transformedReviews.filter(r => r.status === 'rejected').length,
+          spamReviews: transformedReviews.filter(r => r.status === 'spam').length,
+          averageRating: transformedReviews.length > 0 
+            ? transformedReviews.reduce((sum, r) => sum + r.rating, 0) / transformedReviews.length 
+            : 0,
+        };
+        setStats(stats);
+      } else {
+        console.error('Failed to load reviews:', result.error);
+        setReviews([]);
+        const emptyStats: ReviewStats = {
+          totalReviews: 0,
+          pendingReviews: 0,
+          averageRating: 0,
+          approvedReviews: 0,
+          rejectedReviews: 0,
+          spamReviews: 0
+        };
+        setStats(emptyStats);
+      }
     } catch (error) {
       console.error('Failed to load reviews:', error);
+      setReviews([]);
+      const emptyStats: ReviewStats = {
+        totalReviews: 0,
+        pendingReviews: 0,
+        averageRating: 0,
+        approvedReviews: 0,
+        rejectedReviews: 0,
+        spamReviews: 0
+      };
+      setStats(emptyStats);
     } finally {
       setLoading(false);
     }
@@ -182,11 +191,30 @@ export default function ReviewsPage() {
 
   const handleUpdateStatus = async (reviewId: string, newStatus: Review['status']) => {
     try {
-      // Simulate API call
-      console.log('Updating review status:', reviewId, newStatus);
-      await loadReviews();
+      const response = await fetch(`/api/reviews/${reviewId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          moderationNotes: `Status changed to ${newStatus}`,
+          // moderatedBy is now automatically set by the API using the authenticated admin user
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('Review status updated successfully');
+        await loadReviews();
+      } else {
+        console.error('Failed to update review status:', result.error);
+        alert('Failed to update review status: ' + result.error);
+      }
     } catch (error) {
       console.error('Failed to update review status:', error);
+      alert('Failed to update review status. Please try again.');
     }
   };
 

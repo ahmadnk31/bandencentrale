@@ -34,6 +34,7 @@ import {
 import { useCart } from "@/lib/cart-context";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth/client";
+import { isAdmin } from "@/lib/auth/utils";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -68,7 +69,7 @@ const Header = () => {
     }
   };
 
-  const isAdmin = session?.user && false; // Will be replaced with actual role check when DB is connected
+  const isAdminUser = isAdmin(session);
 
  
 
@@ -113,7 +114,7 @@ const Header = () => {
                       Dashboard
                     </Link>
                   </DropdownMenuItem>
-                  {isAdmin && (
+                  {isAdminUser && (
                     <DropdownMenuItem asChild>
                       <Link href="/admin" className="flex items-center">
                         <Shield className="w-4 h-4 mr-2" />
@@ -324,7 +325,7 @@ const Header = () => {
                             <User className="w-5 h-5 mr-3" />
                             Dashboard
                           </Link>
-                          {isAdmin && (
+                          {isAdminUser && (
                             <Link
                               href="/admin"
                               className="flex items-center text-lg font-medium text-tire-dark hover:text-primary transition-colors py-2"

@@ -202,6 +202,84 @@ export function useProductsByIds(ids: string[]) {
   });
 }
 
+export interface Review {
+  id: string;
+  userId?: string;
+  productId?: string;
+  serviceId?: string;
+  orderId?: string;
+  rating: number;
+  title?: string;
+  content: string;
+  reviewerName?: string;
+  reviewerEmail?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  isVerifiedPurchase: boolean;
+  helpfulCount: number;
+  moderatedBy?: string;
+  moderatedAt?: string;
+  moderationNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+  userName?: string;
+  userEmail?: string;
+  productName?: string;
+  productSlug?: string;
+  serviceName?: string;
+  serviceSlug?: string;
+}
+
+export interface ReviewsResponse {
+  success: boolean;
+  data: Review[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+export interface ReviewFilters {
+  search?: string;
+  status?: string;
+  productId?: string;
+  serviceId?: string;
+  rating?: string;
+  page?: number;
+  limit?: number;
+}
+
+export function useReviews(filters: ReviewFilters = {}) {
+  const { page = 1, limit = 10, ...otherFilters } = filters;
+  
+  const queryParams = new URLSearchParams({
+    page: page.toString(),
+    limit: limit.toString(),
+    ...Object.fromEntries(
+      Object.entries(otherFilters).filter(([_, value]) => value !== undefined && value !== '')
+    ),
+  });
+
+  return useQuery<ReviewsResponse>({
+    queryKey: ['reviews', filters],
+    queryFn: async () => {
+      const response = await fetch(`/api/reviews?${queryParams}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch reviews');
+      }
+      return response.json();
+    },
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useProductReviews(productId: string, filters: Omit<ReviewFilters, 'productId'> = {}) {
+  return useReviews({ ...filters, productId, status: 'approved' });
+}
+
 export interface QuoteData {
   customerName: string;
   customerEmail: string;
