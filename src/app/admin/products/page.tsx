@@ -594,6 +594,7 @@ export default function ProductsPage() {
                     <div key={product.id} className="relative group">
                       <ProductCard
                         id={parseInt(product.id)}
+                        slug={product.slug}
                         name={product.name}
                         brand={product.brand?.name || 'Unknown'}
                         price={safeToNumber(product.price)}
@@ -611,7 +612,7 @@ export default function ProductsPage() {
                         inStock={product.stockQuantity > 0}
                         className={viewMode === 'list' ? 'flex' : ''}
                         onAddToCart={() => {}} // Disabled for admin
-                        onViewDetails={() => handleViewProduct(product)}
+                        onViewDetails={(id, slug) => handleViewProduct(product)}
                         onToggleFavorite={() => {}} // Disabled for admin
                       />
                       

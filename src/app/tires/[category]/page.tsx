@@ -299,6 +299,7 @@ const CategoryPage = () => {
                 >
                   <ProductCard
                     id={tire.id}
+                    slug={tire.slug}
                     name={tire.name}
                     brand={tire.brand || "Unknown"}
                     price={parseFloat(tire.price)}
@@ -315,7 +316,7 @@ const CategoryPage = () => {
                     inStock={tire.inStock}
                     className={viewMode === "list" ? "flex" : ""}
                     onAddToCart={(id) => console.log("Add to cart:", id)}
-                    onViewDetails={(id) => router.push(`/product/${id}`)}
+                    onViewDetails={(id, slug) => router.push(`/product/${slug || id}`)}
                     onToggleFavorite={(id) => console.log("Toggle favorite:", id)}
                   />
                 </motion.div>

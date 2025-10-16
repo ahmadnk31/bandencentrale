@@ -140,6 +140,7 @@ const SearchPageContent = () => {
                 >
                   <ProductCard
                     id={tire.id}
+                    slug={tire.slug}
                     name={tire.name}
                     brand={tire.brand || "Unknown"}
                     price={parseFloat(tire.price)}
@@ -153,7 +154,7 @@ const SearchPageContent = () => {
                     features={tire.features || []}
                     inStock={tire.inStock}
                     onAddToCart={() => {}}
-                    onViewDetails={(id) => router.push(`/product/${id}`)}
+                    onViewDetails={(id, slug) => router.push(`/product/${slug || id}`)}
                     onToggleFavorite={() => {}}
                   />
                 </motion.div>
