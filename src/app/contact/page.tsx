@@ -12,14 +12,16 @@ import {
   MapPin, 
   Phone, 
   Mail, 
-  Clock,
+  Clock, 
+  Wrench, 
+  Star, 
+  Navigation,
+  Calendar,
   Send,
   Car,
-  Calendar,
   MessageSquare,
-  Navigation,
   CheckCircle
-} from "lucide-react";
+} from "lucide-react"
 import { useRouter } from "next/navigation";
 
 const ContactPage = () => {
@@ -332,19 +334,57 @@ const ContactPage = () => {
               viewport={{ once: true }}
               className="space-y-8"
             >
-              {/* Map Placeholder */}
+              {/* Map */}
               <Card className="overflow-hidden shadow-xl border-0">
                 <CardContent className="p-0">
-                  <div className="bg-gradient-to-br from-tire-dark to-primary h-64 flex items-center justify-center text-white">
-                    <div className="text-center">
-                      <Navigation className="w-16 h-16 mx-auto mb-4" />
-                      <h4 className="text-xl font-bold mb-2">Interactive Map</h4>
-                      <p className="text-gray-300">
-                        Technologiepark 15, 9052 Ghent, Belgium
+                  <div className="relative h-64">
+                    {/* Google Maps Embed */}
+                    <iframe
+                      src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2508.0737578130584!2d3.7536404772539465!3d51.05172587171325!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47c37700051d85b7%3A0xcde1d6416f99d9f2!2sARIANA%20Bandencentrale!5e0!3m2!1snl!2sbe!4v1760604184722!5m2!1snl!2sbe"
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      allowFullScreen
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      className="absolute inset-0"
+                      title="BandenCentrale Location - Dendermondsesteenweg 428, 9040 Ghent, Belgium"
+                    />
+                    
+                    {/* Overlay with business info */}
+                    <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg p-4 shadow-lg max-w-xs">
+                      <div className="flex items-center mb-2">
+                        <div className="bg-tire-orange w-8 h-8 rounded-full flex items-center justify-center mr-3">
+                          <MapPin className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-tire-dark text-sm">BandenCentrale</h4>
+                          <p className="text-xs text-tire-gray">Premium Tire Solutions</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-tire-gray mb-2">
+                        Technologiepark 15<br />
+                        9052 Ghent, Belgium
                       </p>
-                      <Button className="mt-4 bg-tire-orange hover:bg-tire-orange/90">
-                        Get Directions
-                      </Button>
+                      <div className="flex space-x-2">
+                        <Button 
+                          size="sm" 
+                          className="text-xs px-2 py-1 h-6 bg-tire-orange hover:bg-tire-orange/90"
+                          onClick={() => window.open('https://www.google.com/maps/dir//Technologiepark+15,+9052+Ghent,+Belgium', '_blank')}
+                        >
+                          <Navigation className="w-3 h-3 mr-1" />
+                          Directions
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-xs px-2 py-1 h-6"
+                          onClick={() => window.open('tel:+32467871205')}
+                        >
+                          <Phone className="w-3 h-3 mr-1" />
+                          Call
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
