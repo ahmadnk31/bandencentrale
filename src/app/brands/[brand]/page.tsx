@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,8 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import ProductCard from "@/components/product-card";
 import Header from "@/components/header";
-import { useRouter, useParams } from "next/navigation";
-import { useProducts, useBrands, ProductFilters, Product } from "@/hooks/use-store-data";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useProducts, useBrands, useCategories, ProductFilters, Product } from "@/hooks/use-store-data";
 import { 
   Search, 
   Grid, 
@@ -27,11 +27,14 @@ import {
 const BrandPage = () => {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const brandSlug = params.brand as string;
   
   const [viewMode, setViewMode] = useState("grid");
   const [priceRange, setPriceRange] = useState([50, 500]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedSeason, setSelectedSeason] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [sortBy, setSortBy] = useState("name");
@@ -45,6 +48,80 @@ const BrandPage = () => {
   const seasonsDisplay = ["All-Season", "Summer", "Winter"];
   const sizes = ["185/60R14", "195/65R15", "205/55R16", "215/60R16", "225/45R17", "225/50R17", "235/45R17", "245/40R18", "255/35R19"];
 
+  // Initialize filters from URL parameters
+  useEffect(() => {
+    const category = searchParams.get('category');
+    const season = searchParams.get('season');
+    const size = searchParams.get('size');
+    const search = searchParams.get('search');
+    const minPrice = searchParams.get('minPrice');
+    const maxPrice = searchParams.get('maxPrice');
+    const sort = searchParams.get('sort');
+    const order = searchParams.get('order');
+
+    if (category) setSelectedCategory(category);
+    if (season) setSelectedSeason(season);
+    if (size) setSelectedSize(size);
+    if (search) setSearchTerm(search);
+    if (sort) setSortBy(sort);
+    if (order && (order === 'asc' || order === 'desc')) setSortOrder(order);
+    
+    if (minPrice || maxPrice) {
+      const min = minPrice ? parseInt(minPrice) : 50;
+      const max = maxPrice ? parseInt(maxPrice) : 500;
+      setPriceRange([min, max]);
+    }
+  }, [searchParams]);
+
+  // Update URL when filters change
+  const updateURL = (newFilters: {
+    category?: string;
+    season?: string;
+    size?: string;
+    search?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    sort?: string;
+    order?: string;
+  }) => {
+    const params = new URLSearchParams();
+    
+    if (newFilters.category) params.set('category', newFilters.category);
+    if (newFilters.season) params.set('season', newFilters.season);
+    if (newFilters.size) params.set('size', newFilters.size);
+    if (newFilters.search) params.set('search', newFilters.search);
+    if (newFilters.minPrice && newFilters.minPrice > 50) params.set('minPrice', newFilters.minPrice.toString());
+    if (newFilters.maxPrice && newFilters.maxPrice < 500) params.set('maxPrice', newFilters.maxPrice.toString());
+    if (newFilters.sort && newFilters.sort !== 'name') params.set('sort', newFilters.sort);
+    if (newFilters.order && newFilters.order !== 'asc') params.set('order', newFilters.order);
+
+    const newURL = params.toString() ? `/brands/${brandSlug}?${params.toString()}` : `/brands/${brandSlug}`;
+    router.push(newURL, { scroll: false });
+  };
+
+  // Helper function to map category slug to name
+  const getCategoryNameFromSlug = (slug: string): string | null => {
+    const categoryMap: { [key: string]: string } = {
+      'summer-tires': 'Summer Tires',
+      'winter-tires': 'Winter Tires',
+      'all-season-tires': 'All-Season Tires',
+      'performance-tire': 'Performance Tire',
+      'suv-tires': 'SUV Tires',
+      'truck-tires': 'Truck Tires'
+    };
+    return categoryMap[slug] || null;
+  };
+
+  // Helper function to get season from category slug (fallback)
+  const getSeasonFromCategorySlug = (slug: string): string | null => {
+    const seasonMap: { [key: string]: string } = {
+      'summer-tires': 'summer',
+      'winter-tires': 'winter',
+      'all-season-tires': 'all-season'
+    };
+    return seasonMap[slug] || null;
+  };
+
   // Prepare filters for API call
   const filters: ProductFilters = useMemo(() => {
     const f: ProductFilters = {
@@ -57,20 +134,34 @@ const BrandPage = () => {
     };
 
     if (searchTerm.trim()) f.search = searchTerm.trim();
+    if (selectedCategory) {
+      // For season-based categories, try season filtering first
+      const seasonFromCategory = getSeasonFromCategorySlug(selectedCategory);
+      if (seasonFromCategory) {
+        f.season = seasonFromCategory;
+      } else {
+        // For other categories, use category filtering
+        const categoryName = getCategoryNameFromSlug(selectedCategory);
+        if (categoryName) f.category = categoryName;
+      }
+    }
     if (selectedSeason) f.season = selectedSeason;
+    if (selectedSize) f.size = selectedSize;
     if (priceRange[0] > 50) f.minPrice = priceRange[0];
     if (priceRange[1] < 500) f.maxPrice = priceRange[1];
 
     return f;
-  }, [searchTerm, selectedSeason, brandName, priceRange, sortBy, sortOrder, currentPage]);
+  }, [searchTerm, selectedCategory, selectedSeason, selectedSize, brandName, priceRange, sortBy, sortOrder, currentPage]);
 
   // Fetch data
   const { data: productsResponse, isLoading: productsLoading, error: productsError } = useProducts(filters);
   const { data: brandsResponse, isLoading: brandsLoading } = useBrands();
+  const { data: categoriesResponse, isLoading: categoriesLoading } = useCategories();
 
   const tires = productsResponse?.data || [];
   const pagination = productsResponse?.pagination;
   const brands = brandsResponse?.data || [];
+  const categories = categoriesResponse?.data || [];
   
   // Find the brand data from API
   const brand = brands.find((b: any) => b.name.toLowerCase().replace(/\s+/g, '-') === brandSlug);
@@ -78,9 +169,12 @@ const BrandPage = () => {
   useEffect(() => {
     // Reset filters when brand changes
     setSearchTerm("");
+    setSelectedCategory("");
     setSelectedSeason("");
     setSelectedSize("");
     setPriceRange([50, 500]);
+    setSortBy("name");
+    setSortOrder("asc");
     setCurrentPage(1);
   }, [brandSlug]);
 
@@ -140,18 +234,25 @@ const BrandPage = () => {
                   {brand.description}
                 </p>
                 <div className="flex flex-wrap justify-center gap-6 text-sm">
-                  <div className="flex items-center">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    Founded {brand.founded}
-                  </div>
-                  <div className="flex items-center">
-                    <MapPin className="w-4 h-4 mr-2" />
-                    {brand.country}
-                  </div>
-                  <div className="flex items-center">
-                    <Star className="w-4 h-4 mr-2" />
-                    Specialties: {brand.specialties.join(", ")}
-                  </div>
+                  {brand.countryOfOrigin && (
+                    <div className="flex items-center">
+                      <MapPin className="w-4 h-4 mr-2" />
+                      {brand.countryOfOrigin}
+                    </div>
+                  )}
+                  {brand.website && (
+                    <div className="flex items-center">
+                      <Star className="w-4 h-4 mr-2" />
+                      <a 
+                        href={brand.website} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="hover:text-tire-orange transition-colors"
+                      >
+                        Visit Website
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -213,7 +314,25 @@ const BrandPage = () => {
                 <Input
                   placeholder={`Search ${brandName} tires...`}
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    // Debounce URL update for search
+                    if (searchTimeoutRef.current) {
+                      clearTimeout(searchTimeoutRef.current);
+                    }
+                    searchTimeoutRef.current = setTimeout(() => {
+                      updateURL({
+                        category: selectedCategory,
+                        season: selectedSeason,
+                        size: selectedSize,
+                        search: e.target.value,
+                        minPrice: priceRange[0],
+                        maxPrice: priceRange[1],
+                        sort: sortBy,
+                        order: sortOrder
+                      });
+                    }, 500);
+                  }}
                   className="pl-10"
                 />
               </div>
@@ -221,24 +340,75 @@ const BrandPage = () => {
 
             {/* Quick Filters */}
             <div className="flex flex-wrap gap-4">
-              <Select value={selectedSeason || "all-seasons"} onValueChange={(value) => setSelectedSeason(value === "all-seasons" ? "" : value)}>
+              <Select value={selectedCategory === "" ? "all" : selectedCategory} onValueChange={(value) => {
+                const newCategory = value === "all" ? "" : value;
+                setSelectedCategory(newCategory);
+                updateURL({
+                  category: newCategory,
+                  season: selectedSeason,
+                  size: selectedSize,
+                  search: searchTerm,
+                  minPrice: priceRange[0],
+                  maxPrice: priceRange[1],
+                  sort: sortBy,
+                  order: sortOrder
+                });
+              }}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((category: any) => (
+                    <SelectItem key={category.slug} value={category.slug}>{category.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedSeason === "" ? "all" : selectedSeason} onValueChange={(value) => {
+                const newSeason = value === "all" ? "" : value;
+                setSelectedSeason(newSeason);
+                updateURL({
+                  category: selectedCategory,
+                  season: newSeason,
+                  size: selectedSize,
+                  search: searchTerm,
+                  minPrice: priceRange[0],
+                  maxPrice: priceRange[1],
+                  sort: sortBy,
+                  order: sortOrder
+                });
+              }}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Season" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all-seasons">All Seasons</SelectItem>
+                  <SelectItem value="all">All Seasons</SelectItem>
                   {seasons.map((season, index) => (
                     <SelectItem key={season} value={season}>{seasonsDisplay[index]}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select value={selectedSize || "all-sizes"} onValueChange={(value) => setSelectedSize(value === "all-sizes" ? "" : value)}>
+              <Select value={selectedSize === "" ? "all" : selectedSize} onValueChange={(value) => {
+                const newSize = value === "all" ? "" : value;
+                setSelectedSize(newSize);
+                updateURL({
+                  category: selectedCategory,
+                  season: selectedSeason,
+                  size: newSize,
+                  search: searchTerm,
+                  minPrice: priceRange[0],
+                  maxPrice: priceRange[1],
+                  sort: sortBy,
+                  order: sortOrder
+                });
+              }}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Size" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all-sizes">All Sizes</SelectItem>
+                  <SelectItem value="all">All Sizes</SelectItem>
                   {sizes.map(size => (
                     <SelectItem key={size} value={size}>{size}</SelectItem>
                   ))}
@@ -250,6 +420,16 @@ const BrandPage = () => {
                 const [newSortBy, newSortOrder] = value.split('-');
                 setSortBy(newSortBy);
                 setSortOrder(newSortOrder as "asc" | "desc");
+                updateURL({
+                  category: selectedCategory,
+                  season: selectedSeason,
+                  size: selectedSize,
+                  search: searchTerm,
+                  minPrice: priceRange[0],
+                  maxPrice: priceRange[1],
+                  sort: newSortBy,
+                  order: newSortOrder
+                });
               }}>
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Sort by" />
@@ -291,7 +471,19 @@ const BrandPage = () => {
               <div className="flex-1 max-w-xs">
                 <Slider
                   value={priceRange}
-                  onValueChange={setPriceRange}
+                  onValueChange={(newRange) => {
+                    setPriceRange(newRange);
+                    updateURL({
+                      category: selectedCategory,
+                      season: selectedSeason,
+                      size: selectedSize,
+                      search: searchTerm,
+                      minPrice: newRange[0],
+                      maxPrice: newRange[1],
+                      sort: sortBy,
+                      order: sortOrder
+                    });
+                  }}
                   min={50}
                   max={500}
                   step={10}
@@ -360,7 +552,7 @@ const BrandPage = () => {
           {!productsLoading && !productsError && (
             <div className={`grid ${
               viewMode === "grid" 
-                ? "gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" 
+                ? "gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 auto-rows-fr items-stretch" 
                 : "gap-3 grid-cols-1"
             }`}>
               {tires.map((tire: Product, index: number) => (
@@ -369,9 +561,11 @@ const BrandPage = () => {
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: index * 0.1 }}
+                  className="flex h-full"
                 >
                   <ProductCard
                     id={tire.id}
+                    slug={tire.slug}
                     name={tire.name}
                     brand={tire.brand || "Unknown"}
                     price={parseFloat(tire.price)}
@@ -384,10 +578,16 @@ const BrandPage = () => {
                     speedRating={tire.speedRating || undefined}
                     features={tire.features || []}
                     inStock={tire.inStock}
-                    className={viewMode === "list" ? "flex" : ""}
-                    onAddToCart={(id) => console.log("Add to cart:", id)}
-                    onViewDetails={(id) => router.push(`/product/${id}`)}
-                    onToggleFavorite={(id) => console.log("Toggle favorite:", id)}
+                    className={viewMode === "list" ? "flex w-full" : "h-full w-full"}
+                    onAddToCart={(id) => {
+                      // This will be handled by the ProductCard component using the cart context
+                      console.log("Adding product to cart:", id);
+                    }}
+                    onViewDetails={(id, slug) => router.push(`/product/${slug || id}`)}
+                    onToggleFavorite={(id) => {
+                      // This will be handled by the favorites context in the ProductCard component
+                      console.log("Toggle favorite for product:", id);
+                    }}
                   />
                 </motion.div>
               ))}
@@ -415,9 +615,15 @@ const BrandPage = () => {
                 <Button 
                   onClick={() => {
                     setSearchTerm("");
+                    setSelectedCategory("");
                     setSelectedSeason("");
                     setSelectedSize("");
                     setPriceRange([50, 500]);
+                    setSortBy("name");
+                    setSortOrder("asc");
+                    setCurrentPage(1);
+                    // Clear URL parameters
+                    router.push(`/brands/${brandSlug}`);
                   }}
                 >
                   Clear Filters

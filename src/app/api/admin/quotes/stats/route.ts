@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 import { db } from '@/lib/db/config';
+
 import { quotes, quoteItems } from '@/lib/db/schema';
+
 import { eq, and, count, sum, sql, desc, gte, lte } from 'drizzle-orm';
 
-export async function GET(request: NextRequest) {
+
+async function getHandler(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period') || '30days'; // 7days, 30days, 90days, 1year
@@ -199,3 +203,7 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+
+// Apply admin middleware to all routes
+export const GET = withAdmin(getHandler);

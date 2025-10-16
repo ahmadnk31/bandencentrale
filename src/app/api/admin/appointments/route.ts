@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 import { db } from '@/lib/db/config';
 import { appointments, services, user } from '@/lib/db/schema';
 import { eq, and, gte, lte, ilike, desc, asc, count, sql, inArray } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
 
 // Generate appointment number
 function generateAppointmentNumber(): string {
@@ -14,7 +14,7 @@ function generateAppointmentNumber(): string {
   return `APT-${year}${month}${day}-${random}`;
 }
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const body = await request.json();
 
@@ -259,7 +259,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+async function putHandler(request: NextRequest) {
   try {
     const body = await request.json();
     const { id, ...updateData } = body;
@@ -361,3 +361,9 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
+
+// Apply admin middleware to all routes
+export const GET = withAdmin(getHandler);
+export const POST = withAdmin(postHandler);
+export const PUT = withAdmin(putHandler);

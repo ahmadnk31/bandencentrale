@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAdmin } from '@/lib/auth/admin-middleware';
 import { eq, desc, asc } from "drizzle-orm";
+
 import { db } from "@/lib/db/config";
+
 import { heroBanners } from "@/lib/db/schema";
+
 import { auth } from "@/lib/auth/config";
 
+
 // GET - List all hero banners
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const session = await auth.api.getSession({
       headers: request.headers,
@@ -87,7 +92,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - Create new hero banner
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const session = await auth.api.getSession({
       headers: request.headers,
@@ -151,3 +156,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
+// Apply admin middleware to all routes
+export const GET = withAdmin(getHandler);
+export const POST = withAdmin(postHandler);

@@ -15,6 +15,8 @@ export async function GET() {
         website: brands.website,
         countryOfOrigin: brands.countryOfOrigin,
         isActive: brands.isActive,
+        createdAt: brands.createdAt,
+        updatedAt: brands.updatedAt,
       })
       .from(brands)
       .where(eq(brands.isActive, true))

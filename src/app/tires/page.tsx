@@ -539,9 +539,16 @@ function TiresPageContent() {
                   features={tire.features || []}
                   inStock={tire.inStock}
                   className={viewMode === "list" ? "flex" : "h-full w-full"}
-                  onAddToCart={(id) => console.log("Add to cart:", id)}
+                  onAddToCart={(id) => {
+                    // Handle UUID products - redirect to product page for full functionality
+                    console.log("Adding UUID product to cart:", id);
+                    router.push(`/product/${tire.slug || id}`);
+                  }}
                   onViewDetails={(id, slug) => router.push(`/product/${slug || id}`)}
-                  onToggleFavorite={(id) => console.log("Toggle favorite:", id)}
+                  onToggleFavorite={(id) => {
+                    // This will be handled by the favorites context in the ProductCard component
+                    console.log("Toggle favorite for UUID product:", id);
+                  }}
                 />
               </motion.div>
             ))}

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAdmin } from '@/lib/auth/admin-middleware';
 import { eq } from "drizzle-orm";
+
 import { db } from "@/lib/db/config";
+
 import { heroBanners } from "@/lib/db/schema";
+
 import { auth } from "@/lib/auth/config";
+
 
 interface Props {
   params: Promise<{
@@ -11,7 +16,7 @@ interface Props {
 }
 
 // GET - Get specific hero banner
-export async function GET(request: NextRequest, { params }: Props) {
+async function getHandler(request: NextRequest, { params }: Props) {
   try {
     const session = await auth.api.getSession({
       headers: request.headers,
@@ -50,7 +55,7 @@ export async function GET(request: NextRequest, { params }: Props) {
 }
 
 // PUT - Update hero banner
-export async function PUT(request: NextRequest, { params }: Props) {
+async function putHandler(request: NextRequest, { params }: Props) {
   try {
     const session = await auth.api.getSession({
       headers: request.headers,
@@ -126,7 +131,7 @@ export async function PUT(request: NextRequest, { params }: Props) {
 }
 
 // DELETE - Delete hero banner
-export async function DELETE(request: NextRequest, { params }: Props) {
+async function deleteHandler(request: NextRequest, { params }: Props) {
   try {
     const session = await auth.api.getSession({
       headers: request.headers,
@@ -162,3 +167,9 @@ export async function DELETE(request: NextRequest, { params }: Props) {
     );
   }
 }
+
+
+// Apply admin middleware to all routes
+export const GET = withAdmin(getHandler);
+export const PUT = withAdmin(putHandler);
+export const DELETE = withAdmin(deleteHandler);

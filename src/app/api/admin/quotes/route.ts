@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 import { db } from '@/lib/db/config';
 import { quotes, quoteItems, user, products, services } from '@/lib/db/schema';
 import { eq, ilike, and, or, desc, asc, count, sql } from 'drizzle-orm';
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    
     // Extract query parameters
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
@@ -124,32 +124,77 @@ export async function GET(request: NextRequest) {
       .offset((page - 1) * limit);
 
     // Get items for each quote
-    const quotesWithItems = await Promise.all(
-      quotesList.map(async (quote) => {
-        const items = await db
-          .select({
-            id: quoteItems.id,
-            quoteId: quoteItems.quoteId,
-            productId: quoteItems.productId,
-            serviceId: quoteItems.serviceId,
-            name: quoteItems.name,
-            description: quoteItems.description,
-            quantity: quoteItems.quantity,
-            unitPrice: quoteItems.unitPrice,
-            totalPrice: quoteItems.totalPrice,
-            notes: quoteItems.notes,
-            metadata: quoteItems.metadata,
-            createdAt: quoteItems.createdAt,
-          })
-          .from(quoteItems)
-          .where(eq(quoteItems.quoteId, quote.id));
+    interface QuoteItem {
+        id: string;
+        quoteId: string;
+        productId: string | null;
+        serviceId: string | null;
+        name: string;
+        description: string | null;
+        quantity: number;
+        unitPrice: string;
+        totalPrice: string;
+        notes: string | null;
+        metadata: any;
+        createdAt: Date;
+    }
 
-        return {
-          ...quote,
-          items,
-        };
-      })
-    );
+    interface Quote {
+        id: string;
+        quoteNumber: string;
+        userId: string | null;
+        customerEmail: string;
+        customerPhone: string | null;
+        customerName: string;
+        status: string;
+        type: string;
+        vehicleYear: number | null;
+        vehicleMake: string | null;
+        vehicleModel: string | null;
+        subtotal: string;
+        taxAmount: string;
+        discountAmount: string;
+        totalAmount: string;
+        validUntil: Date;
+        sentAt: Date | null;
+        acceptedAt: Date | null;
+        notes: string | null;
+        internalNotes: string | null;
+        requirements: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }
+
+    interface QuoteWithItems extends Quote {
+        items: QuoteItem[];
+    }
+
+            const quotesWithItems: QuoteWithItems[] = await Promise.all(
+                quotesList.map(async (quote: Quote): Promise<QuoteWithItems> => {
+                    const items: QuoteItem[] = await db
+                        .select({
+                            id: quoteItems.id,
+                            quoteId: quoteItems.quoteId,
+                            productId: quoteItems.productId,
+                            serviceId: quoteItems.serviceId,
+                            name: quoteItems.name,
+                            description: quoteItems.description,
+                            quantity: quoteItems.quantity,
+                            unitPrice: quoteItems.unitPrice,
+                            totalPrice: quoteItems.totalPrice,
+                            notes: quoteItems.notes,
+                            metadata: quoteItems.metadata,
+                            createdAt: quoteItems.createdAt,
+                        })
+                        .from(quoteItems)
+                        .where(eq(quoteItems.quoteId, quote.id));
+
+                    return {
+                        ...quote,
+                        items,
+                    };
+                })
+            );
 
     const totalPages = Math.ceil(totalCount / limit);
 
@@ -176,7 +221,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const body = await request.json();
     
@@ -317,3 +362,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
+// Apply admin middleware to all routes
+export const GET = withAdmin(getHandler);
+export const POST = withAdmin(postHandler);

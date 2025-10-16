@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 import { db } from '@/lib/db/config';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 import { products } from '@/lib/db/schema';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 import { count, eq, sql, lte } from 'drizzle-orm';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     // Get basic stats
     const [totalProductsResult] = await db
@@ -73,3 +77,7 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+
+// Apply admin middleware to all routes
+export const GET = withAdmin(getHandler);

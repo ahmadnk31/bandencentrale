@@ -126,6 +126,46 @@ const ProductCard = ({
     setIsQuickViewOpen(false);
   };
 
+  // Convert current product to TireData format for cart
+  const convertToTireData = () => {
+    // Generate a numeric ID from string ID for cart compatibility
+    const numericId = typeof id === 'string' ? 
+      parseInt(id.replace(/[^0-9]/g, '').substring(0, 8)) || Math.floor(Math.random() * 1000000) : 
+      id;
+
+    return {
+      id: numericId,
+      name,
+      brand: typeof brand === 'string' ? brand : brand?.name || 'Unknown',
+      model: name,
+      price,
+      originalPrice,
+      images,
+      rating,
+      reviews,
+      size: Array.isArray(size) ? size[0] : size || "215/60R16",
+      season: (season || "All-Season") as "All-Season" | "Summer" | "Winter",
+      speedRating: speedRating || "H",
+      loadIndex: "91",
+      features,
+      specifications: {
+        pattern: "Asymmetric",
+        construction: "Radial",
+        sidewallType: "Standard",
+        runFlat: false,
+        studded: false,
+        reinforced: false
+      },
+      description: `${typeof brand === 'string' ? brand : brand?.name || 'Unknown'} ${name}`,
+      warranty: "6 years",
+      category: category || "Passenger",
+      inStock: inStock !== false,
+      stockCount: 10,
+      badge: badge || "",
+      badgeColor: badgeColor || "bg-blue-500"
+    };
+  };
+
   const nextQuickViewImage = () => {
     if (quickViewImageIndex < images.length - 1) {
       setQuickViewImageIndex(quickViewImageIndex + 1);
@@ -484,7 +524,12 @@ const ProductCard = ({
               }`}
               onClick={(e) => {
                 e.stopPropagation();
+                console.log('Toggling favorite for:', id, 'Current status:', isInFavorites(id));
                 toggleFavorite(id);
+                // Also call the prop callback if provided
+                if (onToggleFavorite) {
+                  onToggleFavorite(id);
+                }
               }}
             >
               <Heart className={`w-4 h-4 ${(isFavorite || isInFavorites(id)) ? 'fill-current' : ''}`} />
@@ -599,8 +644,16 @@ const ProductCard = ({
                   <Button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (onAddToCart) {
-                        onAddToCart(id);
+                      try {
+                        const tireData = convertToTireData();
+                        const defaultSize = tireData.size;
+                        addItem(tireData, defaultSize, 1);
+                      } catch (error) {
+                        console.error('Error adding to cart:', error);
+                        // Fallback: use callback if provided
+                        if (onAddToCart) {
+                          onAddToCart(id);
+                        }
                       }
                     }}
                     disabled={!inStock}
@@ -613,10 +666,11 @@ const ProductCard = ({
                     variant="outline"
                     onClick={(e) => {
                       e.stopPropagation();
+                      console.log('List view: Toggling favorite for:', id, 'Current status:', isInFavorites(id));
+                      toggleFavorite(id);
+                      // Also call the prop callback if provided
                       if (onToggleFavorite) {
                         onToggleFavorite(id);
-                      } else {
-                        toggleFavorite(id);
                       }
                     }}
                     className="p-2"
@@ -706,39 +760,15 @@ const ProductCard = ({
             disabled={!inStock}
             onClick={(e) => {
               e.stopPropagation();
-              // Only add to cart if ID is numeric (legacy support)
-              if (typeof id === 'number') {
-                const defaultSize = Array.isArray(size) ? size[0] : size || "";
-                addItem({
-                  id, name, brand: typeof brand === 'string' ? brand : brand?.name || 'Unknown', price, originalPrice, images, rating, reviews,
-                  size: defaultSize,
-                  season: season || "All-Season", 
-                  speedRating: speedRating || "H", 
-                  features, 
-                  badge: badge || "", 
-                  badgeColor, 
-                  category: category || "Passenger", 
-                  inStock,
-                  specifications: {
-                    pattern: "Asymmetric",
-                    construction: "Radial", 
-                    sidewallType: "Standard",
-                    runFlat: false,
-                    studded: false,
-                    reinforced: false
-                  },
-                  description: `${typeof brand === 'string' ? brand : brand?.name || 'Unknown'} ${name}`,
-                  warranty: "6 years",
-                  stockCount: 10,
-                  model: name,
-                  loadIndex: "91"
-                }, defaultSize, 1);
-              } else {
-                // For UUID products, use the callback if provided
+              try {
+                const tireData = convertToTireData();
+                const defaultSize = tireData.size;
+                addItem(tireData, defaultSize, 1);
+              } catch (error) {
+                console.error('Error adding to cart:', error);
+                // Fallback: use callback if provided
                 if (onAddToCart) {
                   onAddToCart(id);
-                } else {
-                  console.log('Add to cart for UUID product:', id);
                 }
               }
             }}
@@ -945,20 +975,38 @@ const ProductCard = ({
                     className="w-full bg-tire-gradient hover:opacity-90 text-white py-3"
                     disabled={!inStock}
                     onClick={() => {
-                      onAddToCart?.(id);
-                      closeQuickView();
+                      try {
+                        const tireData = convertToTireData();
+                        const defaultSize = tireData.size;
+                        addItem(tireData, defaultSize, quantity);
+                        closeQuickView();
+                      } catch (error) {
+                        console.error('Error adding to cart:', error);
+                        // Fallback: use callback if provided
+                        if (onAddToCart) {
+                          onAddToCart(id);
+                          closeQuickView();
+                        }
+                      }
                     }}
                   >
                     <ShoppingCart className="w-5 h-5 mr-2" />
-                    {inStock ? 'Add to Cart' : 'Out of Stock'}
+                    {inStock ? `Add ${quantity} to Cart` : 'Out of Stock'}
                   </Button>
                   <Button 
                     variant="outline" 
                     className="w-full py-3"
-                    onClick={() => onToggleFavorite?.(id)}
+                    onClick={() => {
+                      console.log('Quick view: Toggling favorite for:', id, 'Current status:', isInFavorites(id));
+                      toggleFavorite(id);
+                      // Also call the prop callback if provided
+                      if (onToggleFavorite) {
+                        onToggleFavorite(id);
+                      }
+                    }}
                   >
-                    <Heart className={`w-5 h-5 mr-2 ${isFavorite ? 'fill-current text-red-500' : ''}`} />
-                    {isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                    <Heart className={`w-5 h-5 mr-2 ${(isFavorite || isInFavorites(id)) ? 'fill-current text-red-500' : ''}`} />
+                    {(isFavorite || isInFavorites(id)) ? 'Remove from Favorites' : 'Add to Favorites'}
                   </Button>
                 </div>
 

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/config';
 import { products, brands, categories } from '@/lib/db/schema';
 import { eq, ilike, and, or, desc, asc, count } from 'drizzle-orm';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 
-export async function GET(request: NextRequest) {
+async function getProducts(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
@@ -140,12 +141,12 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function createProduct(request: NextRequest) {
   try {
     const body = await request.json();
     
     // Validate required fields
-    const requiredFields = ['name', 'sku', 'price', 'categoryId', 'brandId'];
+    const requiredFields = ['name', 'price', 'categoryId', 'brandId'];
     for (const field of requiredFields) {
       if (!body[field]) {
         return NextResponse.json(
@@ -201,3 +202,7 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// Apply admin middleware to both GET and POST routes
+export const GET = withAdmin(getProducts);
+export const POST = withAdmin(createProduct);

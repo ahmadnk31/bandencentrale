@@ -146,19 +146,7 @@ const Header = () => {
               </>
             )}
             
-            {/* Admin Link - only show if not authenticated or not admin */}
-            {!session && (
-              <Link href="/admin" className="hover:text-tire-orange transition-colors">
-                <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
-              </Link>
-            )}
-            
-            {/* Favorites link for non-authenticated users */}
-            {!session && (
-              <Link href="/favorites" className="hover:text-tire-orange transition-colors">
-                <Heart className="w-3 h-3 sm:w-4 sm:h-4" />
-              </Link>
-            )}
+            {/* These icons should not be shown to unauthenticated users */}
           </div>
         </div>
       </div>

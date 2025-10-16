@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 import { db } from '@/lib/db/config';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 import { appointments } from '@/lib/db/schema';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 import { eq, and, gte, lte, count, avg, sql } from 'drizzle-orm';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -109,3 +113,7 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+
+// Apply admin middleware to all routes
+export const GET = withAdmin(getHandler);

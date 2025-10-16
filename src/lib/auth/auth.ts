@@ -18,6 +18,10 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false, // Temporarily disable to avoid email issues
+    sendResetPassword: async ({ user, url }) => {
+      // Custom password reset email logic
+      await sendPasswordResetEmail(user.email, url);
+    },
   },
   socialProviders: {
     google: {

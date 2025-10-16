@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/config';
 import { serviceCategories } from '@/lib/db/schema';
 import { eq, ilike, and, or, desc, asc, count } from 'drizzle-orm';
+import { withAdmin } from '@/lib/auth/admin-middleware';
 
-export async function GET(request: NextRequest) {
+async function getServiceCategories(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function createServiceCategory(request: NextRequest) {
   try {
     const body = await request.json();
     
@@ -164,3 +165,7 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// Apply admin middleware to both GET and POST routes
+export const GET = withAdmin(getServiceCategories);
+export const POST = withAdmin(createServiceCategory);
