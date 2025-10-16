@@ -28,15 +28,26 @@ export default function LoginPage() {
       const result = await signIn.email({
         email,
         password,
+        callbackURL: '/dashboard',
       });
 
+      console.log('Login result:', result);
+
       if (result.error) {
+        console.error('Login error:', result.error);
         setError(result.error.message || 'Login failed');
+      } else if (result.data) {
+        console.log('Login successful, redirecting...');
+        // Use window.location for a hard redirect to ensure proper navigation
+        window.location.href = '/dashboard';
       } else {
+        console.log('Login successful via redirect');
+        // If no data but no error, the redirect might have happened
         router.push('/dashboard');
         router.refresh();
       }
     } catch (err) {
+      console.error('Login exception:', err);
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
@@ -45,11 +56,22 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     try {
-      await signIn.social({
+      const result = await signIn.social({
         provider: 'google',
         callbackURL: '/dashboard',
       });
+      
+      console.log('Google sign-in result:', result);
+      
+      if (result.error) {
+        console.error('Google sign-in error:', result.error);
+        setError(result.error.message || 'Google sign-in failed');
+      } else {
+        // Google sign-in usually redirects automatically
+        console.log('Google sign-in successful');
+      }
     } catch (err) {
+      console.error('Google sign-in exception:', err);
       setError('Google sign-in failed. Please try again.');
     }
   };

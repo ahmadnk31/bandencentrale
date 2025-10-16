@@ -16,6 +16,10 @@ const getBaseURL = () => {
     return process.env.BETTER_AUTH_URL;
   }
   
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL;
+  }
+  
   // Fallback for development
   return "http://localhost:3000";
 };

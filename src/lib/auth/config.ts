@@ -82,13 +82,15 @@ export const auth = betterAuth({
   logger: {
     disabled: process.env.NODE_ENV === "production",
   },
-  baseURL: process.env.BETTER_AUTH_URL || process.env.NEXTAUTH_URL,
+  baseURL: process.env.BETTER_AUTH_URL || process.env.NEXTAUTH_URL || (
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
+  ),
   secret: process.env.BETTER_AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   trustedOrigins: [
-    process.env.NEXTAUTH_URL!,
+    process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'),
     "http://localhost:3000",
     "https://bandencentrale.vercel.app",
-  ],
+  ].filter(Boolean),
 });
 
 export type Session = typeof auth.$Infer.Session;
