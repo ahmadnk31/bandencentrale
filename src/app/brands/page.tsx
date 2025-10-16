@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Header from "@/components/header";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useBrands } from "@/hooks/use-store-data";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { 
   Star, 
   Award, 
@@ -27,7 +27,7 @@ import {
   SlidersHorizontal
 } from "lucide-react";
 
-const BrandsPage = () => {
+const BrandsContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: brandsResponse, isLoading: brandsLoading, error: brandsError } = useBrands();
@@ -544,6 +544,22 @@ const BrandsPage = () => {
         </div>
       </section>
     </div>
+  );
+};
+
+const BrandsPage = () => {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-tire-orange mr-2" />
+          <span className="text-lg">Loading brands...</span>
+        </div>
+      </div>
+    }>
+      <BrandsContent />
+    </Suspense>
   );
 };
 

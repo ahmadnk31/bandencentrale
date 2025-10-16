@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdmin } from '@/lib/auth/admin-middleware';
 import { db } from '@/lib/db/config';
-import { withAdmin } from '@/lib/auth/admin-middleware';
 import { products } from '@/lib/db/schema';
-import { withAdmin } from '@/lib/auth/admin-middleware';
 import { count, eq, sql, lte } from 'drizzle-orm';
-import { withAdmin } from '@/lib/auth/admin-middleware';
 
 async function getHandler(request: NextRequest) {
   try {
