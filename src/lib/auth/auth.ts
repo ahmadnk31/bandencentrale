@@ -20,7 +20,7 @@ export const auth = betterAuth({
     requireEmailVerification: false, // Temporarily disable to avoid email issues
     sendResetPassword: async ({ user, url }) => {
       // Custom password reset email logic
-      await sendPasswordResetEmail(user.email, url);
+      await sendPasswordResetEmail(user.email, url, user.name || '');
     },
   },
   socialProviders: {

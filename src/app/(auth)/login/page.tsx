@@ -25,32 +25,83 @@ export default function LoginPage() {
     setError('');
 
     try {
+      console.log('Starting login process...', { 
+        email, 
+        baseURL: window.location.origin,
+        userAgent: navigator.userAgent,
+        cookiesBefore: document.cookie
+      });
+      
       const result = await signIn.email({
         email,
         password,
-        callbackURL: '/dashboard',
       });
 
       console.log('Login result:', result);
+      
+      // Check if cookies were set immediately
+      const cookiesAfter = document.cookie;
+      console.log('Cookies after login:', cookiesAfter);
 
       if (result.error) {
         console.error('Login error:', result.error);
         setError(result.error.message || 'Login failed');
-      } else if (result.data) {
-        console.log('Login successful, redirecting...');
-        // Use window.location for a hard redirect to ensure proper navigation
-        window.location.href = '/dashboard';
       } else {
-        console.log('Login successful via redirect');
-        // If no data but no error, the redirect might have happened
-        router.push('/dashboard');
-        router.refresh();
+        console.log('Login successful, checking for session cookie...');
+        
+        // Check for session cookie
+        const hasSessionCookie = cookiesAfter.includes('better-auth.session_token');
+        console.log('Has session cookie:', hasSessionCookie);
+        
+        if (hasSessionCookie || result.data) {
+          console.log('Session established, redirecting to dashboard...');
+          // Use location.replace to ensure clean navigation
+          window.location.replace('/dashboard');
+        } else {
+          // Wait a moment and try again
+          console.log('Waiting for cookie to be set...');
+          setTimeout(async () => {
+            const finalCookies = document.cookie;
+            console.log('Final cookies check:', finalCookies);
+            
+            if (finalCookies.includes('better-auth.session_token')) {
+              window.location.replace('/dashboard');
+            } else {
+              console.log('Trying server-side login fallback...');
+              // Try server-side login as fallback
+              try {
+                const serverResponse = await fetch('/api/auth/login', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ email, password }),
+                  credentials: 'include',
+                });
+
+                const serverResult = await serverResponse.json();
+                console.log('Server-side login result:', serverResult);
+
+                if (serverResult.success) {
+                  console.log('Server-side login successful, redirecting...');
+                  window.location.replace('/dashboard');
+                } else {
+                  setError(serverResult.error || 'Login failed');
+                }
+              } catch (serverErr) {
+                console.error('Server-side login error:', serverErr);
+                setError('Login succeeded but session was not established. Please try again.');
+              }
+            }
+          }, 1500);
+        }
       }
     } catch (err) {
       console.error('Login exception:', err);
-      setError('An unexpected error occurred. Please try again.');
+      setError(`Login failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
-      setIsLoading(false);
+      // Don't set loading to false immediately if we're redirecting
+      setTimeout(() => setIsLoading(false), 2000);
     }
   };
 
