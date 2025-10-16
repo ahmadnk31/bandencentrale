@@ -363,8 +363,8 @@ const ContactPage = () => {
                         </div>
                       </div>
                       <p className="text-xs text-tire-gray mb-2">
-                        Technologiepark 15<br />
-                        9052 Ghent, Belgium
+                        Dendermondsesteenweg 428<br />
+                        9040 Ghent, Belgium
                       </p>
                       <div className="flex space-x-2">
                         <Button 
