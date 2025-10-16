@@ -8,6 +8,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!db) {
+      return NextResponse.json(
+        { success: false, error: 'Database connection not available' },
+        { status: 500 }
+      );
+    }
+
     const { id } = await params;
 
     const [appointment] = await db
