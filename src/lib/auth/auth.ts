@@ -75,8 +75,8 @@ export const auth = betterAuth({
     },
     crossSubDomainCookies: {
       enabled: process.env.NODE_ENV === "production",
-      domain: process.env.NODE_ENV === "production" 
-        ? process.env.COOKIE_DOMAIN || ".vercel.app" 
+      domain: process.env.NODE_ENV === "production"
+        ? ".bandencentrale.vercel.app"
         : "localhost",
     },
   },
@@ -95,7 +95,6 @@ export const auth = betterAuth({
   trustedOrigins: [
     "http://localhost:3000",
     "https://localhost:3000",
-    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
     "https://bandencentrale.vercel.app",
     ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
     ...(process.env.NEXTAUTH_URL ? [process.env.NEXTAUTH_URL] : []),

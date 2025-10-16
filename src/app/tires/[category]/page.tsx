@@ -306,9 +306,9 @@ const CategoryPage = () => {
                     originalPrice={tire.compareAtPrice ? parseFloat(tire.compareAtPrice) : undefined}
                     images={Array.isArray(tire.images) ? 
                       tire.images.map((img: any, index: number) => ({
-                        src: typeof img === 'string' ? img : img?.src || img?.url || '',
-                        alt: `${tire.name} - Image ${index + 1}`
-                      })).filter((img: any) => img.src && !img.src.includes('placeholder')) :
+                        src: typeof img === 'string' ? img : img?.url || img?.src || '',
+                        alt: img?.alt || `${tire.name} - Image ${index + 1}`
+                      })).filter((img: any) => img.src && img.src.length > 0 && !img.src.includes('placeholder')) :
                       []
                     }
                     rating={4.5}

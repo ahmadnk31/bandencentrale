@@ -601,9 +601,9 @@ export default function ProductsPage() {
                         originalPrice={safeToNumber(product.compareAtPrice)}
                         images={Array.isArray(product.images) ? 
                           product.images.map((img: any, index: number) => ({
-                            src: typeof img === 'string' ? img : img?.src || img?.url || '',
-                            alt: `${product.name} - Image ${index + 1}`
-                          })).filter((img: any) => img.src && !img.src.includes('placeholder')) :
+                            src: typeof img === 'string' ? img : img?.url || img?.src || '',
+                            alt: img?.alt || `${product.name} - Image ${index + 1}`
+                          })).filter((img: any) => img.src && img.src.length > 0 && !img.src.includes('placeholder')) :
                           []
                         }
                         rating={4.5} // You might want to add rating to your Product model

@@ -34,8 +34,18 @@ const SearchPageContent = () => {
     sortOrder: 'asc'
   });
 
+  console.log('useProducts result:', {
+    productsResponse,
+    isLoading: productsLoading,
+    error: productsError,
+    query
+  });
+
   const searchResults = productsResponse?.data || [];
   const pagination = productsResponse?.pagination;
+
+  console.log('Search results:', searchResults);
+  console.log('First product:', searchResults[0]);
 
   useEffect(() => {
     if (query) {
@@ -50,6 +60,7 @@ const SearchPageContent = () => {
       setCurrentPage(1); // Reset to first page on new search
     }
   };
+  console.log('Search Results:', searchResults);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -145,13 +156,24 @@ const SearchPageContent = () => {
                     brand={tire.brand || "Unknown"}
                     price={parseFloat(tire.price)}
                     originalPrice={tire.compareAtPrice ? parseFloat(tire.compareAtPrice) : undefined}
-                    images={Array.isArray(tire.images) ? 
-                      tire.images.map((img: any, index: number) => ({
-                        src: typeof img === 'string' ? img : img?.src || img?.url || '',
-                        alt: `${tire.name} - Image ${index + 1}`
-                      })).filter((img: any) => img.src && !img.src.includes('placeholder')) :
-                      []
-                    }
+                    images={(() => {
+                      console.log('Raw tire images:', tire.images);
+                      const processedImages = Array.isArray(tire.images) ? 
+                        tire.images.map((img: any, index: number) => {
+                          const processed = {
+                              src: img.url || img.src || '',
+                            alt: img?.alt || `${tire.name} - Image ${index + 1}`
+                          };
+                          console.log('Processed image:', processed);
+                          return processed;
+                        }).filter((img: any) => {
+                          const isValid = img.src && img.src.length > 0 && !img.src.includes('placeholder');
+                          console.log('Image validation:', img.src, 'isValid:', isValid);
+                          return isValid;
+                        }) : [];
+                      console.log('Final processed images:', processedImages);
+                      return processedImages;
+                    })()}
                     rating={4.5}
                     reviews={Math.floor(Math.random() * 200) + 50}
                     size={tire.size}

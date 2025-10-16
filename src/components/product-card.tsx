@@ -133,6 +133,21 @@ const ProductCard = ({
       parseInt(id.replace(/[^0-9]/g, '').substring(0, 8)) || Math.floor(Math.random() * 1000000) : 
       id;
 
+    // Ensure images are always in {src, alt} format
+    let formattedImages: Array<{ src: string; alt: string }> = [];
+    if (Array.isArray(images)) {
+      if (images.length > 0 && typeof images[0] === 'object' && images[0].src) {
+        formattedImages = images.map(img => ({ src: img.src, alt: img.alt || name }));
+      } else {
+        // Fallback: if images is array but not objects with src, use default image
+        formattedImages = [{ src: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center', alt: name }];
+      }
+    } else if (typeof images === 'string') {
+      formattedImages = [{ src: images, alt: name }];
+    } else {
+      formattedImages = [{ src: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center', alt: name }];
+    }
+
     return {
       id: numericId,
       name,
@@ -140,7 +155,7 @@ const ProductCard = ({
       model: name,
       price,
       originalPrice,
-      images,
+      images: formattedImages,
       rating,
       reviews,
       size: Array.isArray(size) ? size[0] : size || "215/60R16",
@@ -192,12 +207,16 @@ const ProductCard = ({
   };
 
   const renderProductImage = () => {
-    // Check if we have valid images to display (not placeholder URLs)
-    const hasValidImages = images && images.length > 0 && images[0]?.src && 
-                          !images[0].src.includes("/api/placeholder") && 
-                          !images[0].src.includes("placeholder");
-    
-    if (!hasValidImages) {
+  // Debug logging
+  console.log('ProductCard images prop:', images);
+  console.log('Images length:', images?.length);
+  console.log('First image:', images?.[0]);
+
+  // Accept any image with a non-empty src
+  const hasValidImages = images && images.length > 0 && images[0]?.src && images[0].src.length > 0;
+  console.log('hasValidImages:', hasValidImages);
+
+  if (!hasValidImages) {
       // Render tire visualization for tire products when no real images are available
       return (
         <motion.div 

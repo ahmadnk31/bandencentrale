@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import { useState } from "react";
@@ -11,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Header from "@/components/header";
 import ProductCard from "@/components/product-card";
 import { useCart } from "@/lib/cart-context";
+import { useEffect, useRef } from "react";
 import { useFavorites } from "@/lib/favorites-context";
 import { 
   Star, 
@@ -35,16 +38,43 @@ import {
   Snowflake,
   Sun,
   Mountain,
-  Send
+  Send,
+  Maximize2,
+  X
 } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useParams, useRouter } from "next/navigation";
 import { useProductBySlug, useProducts, useProductReviews, Product } from "@/hooks/use-store-data";
 import { useSession } from "@/lib/auth/client";
+import { Modal, ModalClose, ModalContent } from "@/components/ui/modal";
 
 const ProductPage = () => {
   const params = useParams();
   const router = useRouter();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [direction, setDirection] = useState(0); // 1 for next, -1 for previous
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenIndex, setFullscreenIndex] = useState(0);
+  // Swipe detection threshold
+  const swipeConfidenceThreshold = 10000;
+  const swipePower = (offset: number, velocity: number) => {
+    return Math.abs(offset) * velocity;
+  };
+  // Fullscreen navigation
+  const nextFullscreenImage = () => {
+    setDirection(1);
+    setFullscreenIndex((prev) => (prev + 1) % images.length);
+  };
+  const prevFullscreenImage = () => {
+    setDirection(-1);
+    setFullscreenIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+  const handleFullscreenThumbnailClick = (index: number) => {
+    setDirection(index > fullscreenIndex ? 1 : -1);
+    setFullscreenIndex(index);
+  };
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchEndX, setTouchEndX] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [reviewText, setReviewText] = useState("");
   const [reviewRating, setReviewRating] = useState(5);
@@ -54,7 +84,18 @@ const ProductPage = () => {
   // Cart and Favorites contexts
   const { addItem } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
-  
+    const [showStickyBuy, setShowStickyBuy] = useState(false);
+  const productInfoRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!productInfoRef.current) return;
+      const rect = productInfoRef.current.getBoundingClientRect();
+      setShowStickyBuy(rect.bottom < 80); // Show sticky if product info is above viewport
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
   // Auth session
   const { data: session } = useSession();
 
@@ -104,19 +145,59 @@ const ProductPage = () => {
     : 0;
 
   const images = product.images && product.images.length > 0 
-    ? product.images 
-    : ["https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center"];
+    ? product.images.map((img: any, idx: number) => {
+        if (typeof img === 'string') {
+          return { src: img, alt: product.name };
+        } else if (img && img.url) {
+          return { src: img.url, alt: img.alt || product.name };
+        } else {
+          return { src: '', alt: product.name };
+        }
+      })
+    : [{ src: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center", alt: product.name }];
   
   const nextImage = () => {
     if (images.length > 1) {
+      setDirection(1);
       setCurrentImageIndex((prev) => (prev + 1) % images.length);
     }
   };
 
   const prevImage = () => {
     if (images.length > 1) {
+      setDirection(-1);
       setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
     }
+  };
+
+  // Thumbnail click handler
+  const handleThumbnailClick = (index: number) => {
+    if (index !== currentImageIndex) {
+      setDirection(index > currentImageIndex ? 1 : -1);
+      setCurrentImageIndex(index);
+    }
+  };
+
+  // Swipe support for mobile
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    setTouchEndX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX !== null && touchEndX !== null) {
+      const distance = touchStartX - touchEndX;
+      if (distance > 50) {
+        nextImage(); // swipe left
+      } else if (distance < -50) {
+        prevImage(); // swipe right
+      }
+    }
+    setTouchStartX(null);
+    setTouchEndX(null);
   };
 
   const getSeasonIcon = () => {
@@ -136,7 +217,20 @@ const ProductPage = () => {
   const handleAddToCart = () => {
     if (!product) return;
     
-    // Convert product to TireData format expected by cart
+
+    // Use the same images mapping as for product page display
+    const images = product.images && product.images.length > 0 
+      ? product.images.map((img: any, idx: number) => {
+          if (typeof img === 'string') {
+            return { src: img, alt: product.name };
+          } else if (img && img.url) {
+            return { src: img.url, alt: img.alt || product.name };
+          } else {
+            return { src: '', alt: product.name };
+          }
+        })
+      : [{ src: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center", alt: product.name }];
+
     const tireData = {
       id: typeof product.id === 'string' ? parseInt(product.id) : Number(product.id),
       name: product.name,
@@ -144,9 +238,7 @@ const ProductPage = () => {
       model: product.name,
       price: parseFloat(product.price),
       originalPrice: product.compareAtPrice ? parseFloat(product.compareAtPrice) : undefined,
-      images: Array.isArray(product.images) 
-        ? product.images.map(img => ({ src: img, alt: product.name }))
-        : [{ src: product.images || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center', alt: product.name }],
+      images,
       rating: 4.5, // Default rating
       reviews: 148, // Default review count
       size: product.size || '',
@@ -292,17 +384,155 @@ const ProductPage = () => {
                 className="relative aspect-square bg-white rounded-2xl overflow-hidden shadow-lg"
                 whileHover={{ scale: 1.02 }}
                 transition={{ duration: 0.3 }}
+                drag={images.length > 1 ? "x" : false}
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.2}
+                onDragEnd={(e, { offset, velocity }) => {
+                  if (images.length > 1) {
+                    const swipe = swipePower(offset.x, velocity.x);
+                    if (swipe < -swipeConfidenceThreshold) {
+                      nextImage();
+                    } else if (swipe > swipeConfidenceThreshold) {
+                      prevImage();
+                    }
+                  }
+                }}
               >
-                <AnimatePresence mode="wait">
+                {/* Fullscreen icon */}
+                <button
+                  className="absolute top-4 right-4 z-20 bg-white/80 rounded-full p-2 shadow hover:bg-white"
+                  onClick={() => {
+                    setIsFullscreen(true);
+                    setFullscreenIndex(currentImageIndex);
+                  }}
+                  aria-label="Fullscreen"
+                >
+                  <Maximize2 className="w-5 h-5 text-tire-dark" />
+                </button>
+      {/* Fullscreen Modal */}
+      <Modal open={isFullscreen} onOpenChange={setIsFullscreen}>
+        <ModalContent className="w-screen h-screen  p-0 bg-black flex items-center justify-center z-[1000]">
+          <div className="relative w-full h-full flex items-center justify-center bg-black">
+            <AnimatePresence mode="wait" custom={direction}>
+              <motion.img
+                key={fullscreenIndex}
+                src={images[fullscreenIndex]?.src || "/api/placeholder/400/400"}
+                alt={images[fullscreenIndex]?.alt || product.name}
+                className="w-full h-full object-contain"
+                variants={{
+                  enter: (dir: number) => ({
+                    x: dir > 0 ? "100vw" : "-100vw",
+                    opacity: 0
+                  }),
+                  center: {
+                    x: 0,
+                    opacity: 1
+                  },
+                  exit: (dir: number) => ({
+                    x: dir > 0 ? "-100vw" : "100vw",
+                    opacity: 0
+                  })
+                }}
+                custom={direction}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ 
+                  type: "tween",
+                  ease: [0.25, 0.46, 0.45, 0.94],
+                  duration: 0.5
+                }}
+                drag={images.length > 1 ? "x" : false}
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.2}
+                onDragEnd={(e, { offset, velocity }) => {
+                  if (images.length > 1) {
+                    const swipe = swipePower(offset.x, velocity.x);
+                    if (swipe < -swipeConfidenceThreshold) {
+                      nextFullscreenImage();
+                    } else if (swipe > swipeConfidenceThreshold) {
+                      prevFullscreenImage();
+                    }
+                  }
+                }}
+              />
+            </AnimatePresence>
+            {/* Fullscreen carousel controls */}
+            {images.length > 1 && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute left-8 top-1/2 -translate-y-1/2 w-12 h-12 p-0 bg-white/80 hover:bg-white rounded-full shadow-lg z-10"
+                  onClick={prevFullscreenImage}
+                >
+                  <ChevronLeft className="w-8 h-8" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-8 top-1/2 -translate-y-1/2 w-12 h-12 p-0 bg-white/80 hover:bg-white rounded-full shadow-lg z-10"
+                  onClick={nextFullscreenImage}
+                >
+                  <ChevronRight className="w-8 h-8" />
+                </Button>
+              </>
+            )}
+            {/* Fullscreen thumbnails */}
+            {images.length > 1 && (
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-4">
+                {images.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleFullscreenThumbnailClick(idx)}
+                    className={`w-16 h-16 rounded-lg overflow-hidden border-2 ${
+                      idx === fullscreenIndex ? 'border-tire-orange' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <img
+                      src={img.src}
+                      alt={img.alt || `${product.name} ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <ModalClose className="absolute top-4 right-6 z-10 text-white">
+            <X/>
+          </ModalClose>
+        </ModalContent>
+      </Modal>
+                <AnimatePresence mode="wait" custom={direction}>
                   <motion.img
                     key={currentImageIndex}
-                    src={images[currentImageIndex] || "/api/placeholder/400/400"}
-                    alt={product.name}
+                    src={images[currentImageIndex]?.src || "/api/placeholder/400/400"}
+                    alt={images[currentImageIndex]?.alt || product.name}
                     className="w-full h-full object-cover"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3 }}
+                    variants={{
+                      enter: (dir: number) => ({
+                        x: dir > 0 ? "100%" : "-100%",
+                        opacity: 0
+                      }),
+                      center: {
+                        x: 0,
+                        opacity: 1
+                      },
+                      exit: (dir: number) => ({
+                        x: dir > 0 ? "-100%" : "100%",
+                        opacity: 0
+                      })
+                    }}
+                    custom={direction}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ 
+                      type: "tween",
+                      ease: [0.25, 0.46, 0.45, 0.94],
+                      duration: 0.5
+                    }}
                   />
                 </AnimatePresence>
 
@@ -346,10 +576,10 @@ const ProductPage = () => {
               {/* Thumbnail Navigation */}
               {images.length > 1 && (
                 <div className="flex gap-3 overflow-x-auto pb-2">
-                  {images.map((image: string, index: number) => (
+                  {images.map((image: any, index: number) => (
                     <button
                       key={index}
-                      onClick={() => setCurrentImageIndex(index)}
+                      onClick={() => handleThumbnailClick(index)}
                       className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-colors ${
                         index === currentImageIndex 
                           ? 'border-tire-orange' 
@@ -357,8 +587,8 @@ const ProductPage = () => {
                       }`}
                     >
                       <img
-                        src={image}
-                        alt={`${product.name} ${index + 1}`}
+                        src={image.src}
+                        alt={image.alt || `${product.name} ${index + 1}`}
                         className="w-full h-full object-cover"
                       />
                     </button>
@@ -368,7 +598,23 @@ const ProductPage = () => {
             </div>
 
             {/* Product Information */}
-            <div className="space-y-8">
+            <div className="space-y-8" ref={productInfoRef}>
+      {/* Sticky Buy Button */}
+      {showStickyBuy && (
+        <div className="fixed top-0 left-0 w-full z-[999] bg-white shadow-lg border-b border-gray-200 flex items-center justify-center py-2 px-4">
+          <div className="max-w-2xl w-full">
+            <Button 
+              size="lg" 
+              className="w-full bg-tire-gradient hover:opacity-90 text-white py-3 text-lg"
+              disabled={!product.inStock}
+              onClick={handleAddToCart}
+            >
+              <ShoppingCart className="w-6 h-6 mr-2" />
+              {product.inStock ? 'Add to Cart' : 'Out of Stock'}
+            </Button>
+          </div>
+        </div>
+      )}
               {/* Header */}
               <div>
                 <div className="flex items-center gap-3 mb-3">
@@ -939,9 +1185,9 @@ const ProductPage = () => {
                     originalPrice={relatedProduct.compareAtPrice ? parseFloat(relatedProduct.compareAtPrice) : undefined}
                     images={Array.isArray(relatedProduct.images) ? 
                       relatedProduct.images.map((img: any, index: number) => ({
-                        src: typeof img === 'string' ? img : img?.src || img?.url || '',
-                        alt: `${relatedProduct.name} - Image ${index + 1}`
-                      })).filter((img: any) => img.src && !img.src.includes('placeholder')) :
+                        src: typeof img === 'string' ? img : img?.url || img?.src || '',
+                        alt: img?.alt || `${relatedProduct.name} - Image ${index + 1}`
+                      })).filter((img: any) => img.src && img.src.length > 0 && !img.src.includes('placeholder')) :
                       []
                     }
                     rating={4.5}

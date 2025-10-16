@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useReducer, ReactNode } from "react";
+import React, { useEffect } from "react";
 import { TireData } from "@/lib/data";
 
 interface CartItem extends TireData {
@@ -121,7 +122,52 @@ const initialState: CartState = {
 };
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
-  const [state, dispatch] = useReducer(cartReducer, initialState);
+  // Load cart state from localStorage if available
+  const getInitialState = (): CartState => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('cart');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          // Defensive: ensure all keys exist and are correct types
+          if (
+            typeof parsed === 'object' &&
+            Array.isArray(parsed.items) &&
+            typeof parsed.total === 'number' &&
+            typeof parsed.itemCount === 'number'
+          ) {
+            // MIGRATION: Fix images format in cart items
+            const migratedItems = parsed.items.map((item: any) => {
+              let images = [];
+              if (Array.isArray(item.images)) {
+                if (item.images.length > 0 && typeof item.images[0] === 'object' && item.images[0].src) {
+                  images = item.images.map((img: any) => ({ src: img.src, alt: img.alt || item.name }));
+                } else {
+                  images = item.images.map((img: any) => ({ src: img, alt: item.name }));
+                }
+              } else if (typeof item.images === 'string') {
+                images = [{ src: item.images, alt: item.name }];
+              } else {
+                images = [{ src: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center', alt: item.name }];
+              }
+              return { ...item, images };
+            });
+            return { ...parsed, items: migratedItems };
+          }
+        } catch {}
+      }
+    }
+    return initialState;
+  };
+
+  const [state, dispatch] = useReducer(cartReducer, initialState, getInitialState);
+
+  // Persist cart state to localStorage on change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cart', JSON.stringify(state));
+    }
+  }, [state]);
 
   const addItem = (tire: TireData, size: string, quantity = 1) => {
     dispatch({ type: 'ADD_ITEM', payload: { tire, size, quantity } });
