@@ -570,7 +570,13 @@ const BrandPage = () => {
                     brand={tire.brand || "Unknown"}
                     price={parseFloat(tire.price)}
                     originalPrice={tire.compareAtPrice ? parseFloat(tire.compareAtPrice) : undefined}
-                    images={tire.images || []}
+                    images={Array.isArray(tire.images) ? 
+                      tire.images.map((img: any, index: number) => ({
+                        src: typeof img === 'string' ? img : img?.src || img?.url || '',
+                        alt: `${tire.name} - Image ${index + 1}`
+                      })).filter((img: any) => img.src && !img.src.includes('placeholder')) :
+                      []
+                    }
                     rating={4.5}
                     reviews={Math.floor(Math.random() * 200) + 50}
                     size={tire.size}

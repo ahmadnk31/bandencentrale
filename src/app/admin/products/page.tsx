@@ -599,7 +599,13 @@ export default function ProductsPage() {
                         brand={product.brand?.name || 'Unknown'}
                         price={safeToNumber(product.price)}
                         originalPrice={safeToNumber(product.compareAtPrice)}
-                        images={product.images?.map(url => ({ src: url, alt: product.name })) || []}
+                        images={Array.isArray(product.images) ? 
+                          product.images.map((img: any, index: number) => ({
+                            src: typeof img === 'string' ? img : img?.src || img?.url || '',
+                            alt: `${product.name} - Image ${index + 1}`
+                          })).filter((img: any) => img.src && !img.src.includes('placeholder')) :
+                          []
+                        }
                         rating={4.5} // You might want to add rating to your Product model
                         reviews={Math.floor(Math.random() * 100) + 10} // Placeholder
                         size={product.size}

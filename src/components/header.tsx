@@ -35,6 +35,7 @@ import { useCart } from "@/lib/cart-context";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth/client";
 import { isAdmin } from "@/lib/auth/utils";
+import Image from "next/image";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -161,20 +162,15 @@ const Header = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-3 sm:py-4">
             {/* Logo */}
-            <Link href="/" className="flex items-center space-x-2 sm:space-x-3">
+            <Link href="/" className="flex cursor-pointer items-center space-x-2 sm:space-x-3">
               <motion.div 
-                className="bg-tire-gradient p-2 sm:p-3 rounded-xl"
+                whileTap={{ scale: 1.1 }}
                 whileHover={{ scale: 1.05 }}
                 transition={{ type: "spring", stiffness: 400, damping: 10 }}
               >
-                <Car className="w-6 h-6 sm:w-8 sm:h-8 text-white tire-spin" />
+                <Image src={"/logo.png"} alt="BandenCentrale Logo" width={50} height={50} className="w-8 h-8 sm:w-10 sm:h-10"/>
               </motion.div>
-              <div className="hidden md:block">
-                <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-tire-dark to-primary bg-clip-text text-transparent">
-                  BandenCentrale
-                </h1>
-                <p className="text-xs sm:text-sm text-tire-gray">Premium Tire Solutions</p>
-              </div>
+              
               
             </Link>
 
