@@ -9,6 +9,18 @@ import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
+interface ServiceCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  icon: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 function useServiceCategories() {
   return useQuery({
     queryKey: ['service-categories'],
@@ -37,7 +49,7 @@ import {
 const ServicesPage = () => {
   const router = useRouter();
   const { data: categoriesResponse, isLoading: categoriesLoading } = useServiceCategories();
-  const categories = categoriesResponse?.data || [];
+  const categories: ServiceCategory[] = categoriesResponse?.data || [];
   const stats = [
     { number: "50,000+", label: "Tires Installed", icon: Car },
     { number: "98%", label: "Customer Satisfaction", icon: Star },
@@ -115,7 +127,7 @@ const ServicesPage = () => {
                 <Calendar className="w-5 h-5 mr-2" />
                 Book Appointment
               </Button>
-              <Button size="lg" variant="outline" className="text-white border-white hover:bg-white hover:text-tire-dark">
+              <Button size="lg" variant="outline" className="text-black border-white hover:bg-white hover:text-tire-dark">
                 <Phone className="w-5 h-5 mr-2" />
                 Call +32 467 87 1205
               </Button>
@@ -131,9 +143,9 @@ const ServicesPage = () => {
             <h3 className="text-xl font-semibold text-tire-dark">Browse by Category</h3>
           </div>
           <div className="flex flex-wrap justify-center gap-4">
-            {categories.map((category: any) => (
+            {categories.map((category: ServiceCategory) => (
               <Badge 
-                key={category}
+                key={category.id}
                 variant="outline" 
                 className="cursor-pointer hover:bg-tire-orange hover:text-white hover:border-tire-orange px-4 py-2 text-sm"
                 onClick={() => {
@@ -144,7 +156,7 @@ const ServicesPage = () => {
                   }
                 }}
               >
-                {category}
+                {category.name}
               </Badge>
             ))}
           </div>
@@ -319,7 +331,7 @@ const ServicesPage = () => {
                 <Calendar className="w-5 h-5 mr-2" />
                 Schedule Service
               </Button>
-              <Button size="lg" variant="outline" className="text-white border-white hover:bg-white hover:text-tire-dark px-8">
+              <Button size="lg" variant="outline" className="text-black border-white hover:bg-white hover:text-tire-dark px-8">
                 <MapPin className="w-5 h-5 mr-2" />
                 Visit Our Shop
               </Button>

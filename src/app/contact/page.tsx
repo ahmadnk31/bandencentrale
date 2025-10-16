@@ -339,8 +339,7 @@ const ContactPage = () => {
                 <CardContent className="p-0">
                   <div className="relative h-64">
                     {/* Google Maps Embed */}
-                    <iframe
-                      src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2508.0737578130584!2d3.7536404772539465!3d51.05172587171325!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47c37700051d85b7%3A0xcde1d6416f99d9f2!2sARIANA%20Bandencentrale!5e0!3m2!1snl!2sbe!4v1760604184722!5m2!1snl!2sbe"
+                    <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d183601.66334395125!2d3.288023070607866!3d51.08270543580926!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47c37700051d85b7%3A0xcde1d6416f99d9f2!2sARIANA%20Bandencentrale!5e0!3m2!1snl!2sbe!4v1760615738778!5m2!1snl!2sbe" 
                       width="100%"
                       height="100%"
                       style={{ border: 0 }}
@@ -370,7 +369,7 @@ const ContactPage = () => {
                         <Button 
                           size="sm" 
                           className="text-xs px-2 py-1 h-6 bg-tire-orange hover:bg-tire-orange/90"
-                          onClick={() => window.open('https://www.google.com/maps/dir//Technologiepark+15,+9052+Ghent,+Belgium', '_blank')}
+                          onClick={() => window.open('https://www.google.com/maps/dir//Dendermondsesteenweg+428,+9040+Ghent,+Belgium', '_blank')}
                         >
                           <Navigation className="w-3 h-3 mr-1" />
                           Directions

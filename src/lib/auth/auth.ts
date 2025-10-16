@@ -70,8 +70,10 @@ export const auth = betterAuth({
       generateId: () => crypto.randomUUID(),
     },
     crossSubDomainCookies: {
-      enabled: true,
-      domain: process.env.COOKIE_DOMAIN,
+      enabled: process.env.NODE_ENV === "production",
+      domain: process.env.NODE_ENV === "production" 
+        ? process.env.COOKIE_DOMAIN || ".vercel.app" 
+        : "localhost",
     },
   },
   rateLimit: {
@@ -82,13 +84,18 @@ export const auth = betterAuth({
   logger: {
     disabled: process.env.NODE_ENV === "production",
   },
-  baseURL: process.env.BETTER_AUTH_URL || process.env.NEXTAUTH_URL,
+  baseURL: process.env.NODE_ENV === "production" 
+    ? (process.env.BETTER_AUTH_URL || process.env.NEXTAUTH_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://bandencentrale.vercel.app")
+    : "http://localhost:3000",
   secret: process.env.BETTER_AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   trustedOrigins: [
-    process.env.NEXTAUTH_URL!,
     "http://localhost:3000",
+    "https://localhost:3000",
+    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
     "https://bandencentrale.vercel.app",
-  ],
+    ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
+    ...(process.env.NEXTAUTH_URL ? [process.env.NEXTAUTH_URL] : []),
+  ].filter(Boolean),
 });
 
 export type Session = typeof auth.$Infer.Session;
