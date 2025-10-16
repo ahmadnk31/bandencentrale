@@ -64,7 +64,7 @@ const ProductCard = ({
   brand,
   price,
   originalPrice,
-  images,
+  images: rawImages,
   rating,
   reviews,
   size,
@@ -81,6 +81,19 @@ const ProductCard = ({
   isFavorite = false,
   className = ""
 }: ProductCardProps) => {
+  // Normalize images to always be an array of {src, alt}
+  let images: { src: string; alt: string }[] = [];
+  if (Array.isArray(rawImages)) {
+    if (rawImages.length > 0 && typeof rawImages[0] === 'object' && rawImages[0].src) {
+      images = rawImages.map(img => ({ src: img.src, alt: img.alt || name }));
+    } else {
+      images = rawImages.map(img => ({ src: img, alt: name }));
+    }
+  } else if (typeof rawImages === 'string') {
+    images = [{ src: rawImages, alt: name }];
+  } else {
+    images = [{ src: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center', alt: name }];
+  }
   const router = useRouter();
   const { addItem } = useCart();
   const { isFavorite: isInFavorites, toggleFavorite } = useFavorites();
@@ -332,7 +345,7 @@ const ProductCard = ({
             key={currentImageIndex}
             src={images[currentImageIndex].src}
             alt={images[currentImageIndex].alt}
-            className="w-full h-full object-cover absolute inset-0 pointer-events-none"
+            className="w-full h-full object-contain absolute inset-0 pointer-events-none bg-white"
             variants={{
               enter: (direction: number) => ({
                 x: direction > 0 ? "100%" : "-100%",
@@ -435,7 +448,7 @@ const ProductCard = ({
         <Image
           src={images[currentImageIndex]?.src}
           alt={images[currentImageIndex]?.alt || name}
-          className="w-full h-full object-contain transition-all duration-300"
+          className="w-full h-full object-contain aspect-square transition-all duration-300"
         />
         
         {/* Navigation arrows for list view if multiple images */}

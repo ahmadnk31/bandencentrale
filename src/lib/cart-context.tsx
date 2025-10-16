@@ -19,10 +19,13 @@ type CartAction =
   | { type: 'ADD_ITEM'; payload: { tire: TireData; size: string; quantity?: number } }
   | { type: 'REMOVE_ITEM'; payload: { id: number; size: string } }
   | { type: 'UPDATE_QUANTITY'; payload: { id: number; size: string; quantity: number } }
-  | { type: 'CLEAR_CART' };
+  | { type: 'CLEAR_CART' }
+  | { type: 'REPLACE_CART'; payload: CartState };
 
 const cartReducer = (state: CartState, action: CartAction): CartState => {
   switch (action.type) {
+    case 'REPLACE_CART':
+      return action.payload;
     case 'ADD_ITEM': {
       const { tire, size, quantity = 1 } = action.payload;
       const existingItemIndex = state.items.findIndex(
@@ -123,44 +126,44 @@ const initialState: CartState = {
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   // Load cart state from localStorage if available
-  const getInitialState = (): CartState => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('cart');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          // Defensive: ensure all keys exist and are correct types
-          if (
-            typeof parsed === 'object' &&
-            Array.isArray(parsed.items) &&
-            typeof parsed.total === 'number' &&
-            typeof parsed.itemCount === 'number'
-          ) {
-            // MIGRATION: Fix images format in cart items
-            const migratedItems = parsed.items.map((item: any) => {
-              let images = [];
-              if (Array.isArray(item.images)) {
-                if (item.images.length > 0 && typeof item.images[0] === 'object' && item.images[0].src) {
-                  images = item.images.map((img: any) => ({ src: img.src, alt: img.alt || item.name }));
-                } else {
-                  images = item.images.map((img: any) => ({ src: img, alt: item.name }));
-                }
-              } else if (typeof item.images === 'string') {
-                images = [{ src: item.images, alt: item.name }];
-              } else {
-                images = [{ src: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center', alt: item.name }];
-              }
-              return { ...item, images };
-            });
-            return { ...parsed, items: migratedItems };
-          }
-        } catch {}
-      }
-    }
-    return initialState;
-  };
 
-  const [state, dispatch] = useReducer(cartReducer, initialState, getInitialState);
+    const [state, dispatch] = useReducer(cartReducer, initialState);
+
+    // Hydrate cart from localStorage on client only
+    useEffect(() => {
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('cart');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (
+              typeof parsed === 'object' &&
+              Array.isArray(parsed.items) &&
+              typeof parsed.total === 'number' &&
+              typeof parsed.itemCount === 'number'
+            ) {
+              // MIGRATION: Fix images format in cart items
+              const migratedItems = parsed.items.map((item: any) => {
+                let images = [];
+                if (Array.isArray(item.images)) {
+                  if (item.images.length > 0 && typeof item.images[0] === 'object' && item.images[0].src) {
+                    images = item.images.map((img: any) => ({ src: img.src, alt: img.alt || item.name }));
+                  } else {
+                    images = item.images.map((img: any) => ({ src: img, alt: item.name }));
+                  }
+                } else if (typeof item.images === 'string') {
+                  images = [{ src: item.images, alt: item.name }];
+                } else {
+                  images = [{ src: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&crop=center', alt: item.name }];
+                }
+                return { ...item, images };
+              });
+              dispatch({ type: 'REPLACE_CART', payload: { ...parsed, items: migratedItems } });
+            }
+          } catch {}
+        }
+      }
+    }, []);
 
   // Persist cart state to localStorage on change
   useEffect(() => {
