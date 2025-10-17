@@ -26,6 +26,7 @@ const getBaseURL = () => {
 
 export const authClient = createAuthClient({
   baseURL: getBaseURL(),
+  cookieName: process.env.NODE_ENV === 'production' ? '__Secure-better-auth.session_token' : 'better-auth.session_token',
 });
 
 export const {

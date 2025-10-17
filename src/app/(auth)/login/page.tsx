@@ -30,10 +30,13 @@ export default function LoginPage() {
         password,
       });
 
+      // Debug: log login result and cookie status
+      console.log('Login result:', result);
+      console.log('Login cookies after:', typeof document !== 'undefined' ? document.cookie : 'SSR');
+
       if (result.error) {
         setError(result.error.message || 'Login failed');
       } else {
-        // Always redirect after successful login
         router.replace('/dashboard');
       }
     } catch (err) {

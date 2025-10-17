@@ -13,6 +13,10 @@ export default function DashboardPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Debug: log session and cookie status
+    console.log('Dashboard useSession data:', session);
+    console.log('Dashboard isPending:', isPending);
+    console.log('Dashboard cookies:', typeof document !== 'undefined' ? document.cookie : 'SSR');
     if (!isPending && !session) {
       router.push('/login');
     }
@@ -27,7 +31,8 @@ export default function DashboardPage() {
   }
 
   if (!session) {
-    return null;
+    // Debug: show message if session is missing
+    return <div className="min-h-screen flex items-center justify-center text-red-500">No session found. Check login and cookie status in console.</div>;
   }
 
   const user = session.user;
