@@ -34,14 +34,14 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    // Temporarily disabled to fix date issues
-    // twoFactor({
-    //   issuer: "BandenCentrale",
-    // }),
+    // Email verification plugin
   ],
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
   },
   user: {
     additionalFields: {

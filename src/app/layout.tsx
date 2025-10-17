@@ -8,7 +8,7 @@ import { FavoritesProvider } from "@/lib/favorites-context";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import Header from "@/components/header";
 import QueryProvider from "@/providers/query-provider";
-
+import { Analytics } from "@vercel/analytics/next"
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -131,6 +131,7 @@ export default function RootLayout({
           <QueryProvider>
             <CartProvider>
               <FavoritesProvider>
+              <Analytics />
                 
                 {children}
                 <Footer/>
