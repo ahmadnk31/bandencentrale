@@ -38,8 +38,7 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
-    httpOnly: false, // Allow client-side JS to read the cookie
-    cookieName: 'better-auth.session_token',
+    httpOnly: true, // Allow client-side JS to read the cookie
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
   },

@@ -53,11 +53,9 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const router = useRouter();
 
   // Redirect to login if not authenticated or not admin
-  useEffect(() => {
-    if (!isPending && (!session || !isAdmin(session))) {
-      router.push('/login?from=/admin');
-    }
-  }, [session, isPending, router]);
+  if (!isAdmin(session)) {
+    router.push('/login?from=/admin');
+  }
 
   const handleSignOut = async () => {
     try {
