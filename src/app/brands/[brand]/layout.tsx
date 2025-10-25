@@ -5,8 +5,7 @@ type Props = {
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { brand } = await params;
-  const brandSlug = brand?.toLowerCase();
+  const brandSlug = params.brand;
   const brandName = brandSlug?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || '';
   
   return {

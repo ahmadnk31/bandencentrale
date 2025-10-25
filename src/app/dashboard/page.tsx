@@ -9,8 +9,35 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, User, Package, Calendar, FileText, Settings, LogOut } from 'lucide-react';
 
 export default function DashboardPage() {
-  // Server-side middleware now protects this route.
-  // If you want to show user info, fetch it server-side or via API and pass as props.
+  const { data: session, isPending } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Debug: log session and cookie status
+    console.log('Dashboard useSession data:', session);
+    console.log('Dashboard isPending:', isPending);
+    console.log('Dashboard cookies:', typeof document !== 'undefined' ? document.cookie : 'SSR');
+    if (!isPending && !session) {
+      router.push('/login');
+    }
+  }, [session, isPending, router]);
+
+  if (isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    // Debug: show message if session is missing
+    return <div className="min-h-screen flex items-center justify-center text-red-500">No session found. Check login and cookie status in console.</div>;
+  }
+
+  const user = session.user;
+  // Note: Role will be available when the database is connected
+  const isAdmin = false; // Will be replaced with actual role check when DB is connected
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -27,13 +54,16 @@ export default function DashboardPage() {
               </a>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">Welcome, User</span>
+              <span className="text-sm text-gray-600">Welcome, {user.name || user.email}</span>
+              {isAdmin && (
+                <Badge variant="secondary">Admin</Badge>
+              )}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   // Handle logout
-                  window.location.href = '/login';
+                  router.push('/login');
                 }}
               >
                 <LogOut className="h-4 w-4 mr-2" />
@@ -66,8 +96,8 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <p className="text-sm"><strong>Name:</strong> Not set</p>
-                <p className="text-sm"><strong>Email:</strong> Not set</p>
+                <p className="text-sm"><strong>Name:</strong> {user.name || 'Not set'}</p>
+                <p className="text-sm"><strong>Email:</strong> {user.email}</p>
                 <p className="text-sm"><strong>Role:</strong> Customer</p>
               </div>
               <Button variant="outline" size="sm" className="mt-4 w-full">
@@ -161,7 +191,27 @@ export default function DashboardPage() {
           </Card>
 
           {/* Admin Panel (only for admins) */}
-          {/* If you want to show admin panel, use server-side logic to determine admin status */}
+          {isAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Settings className="h-5 w-5 mr-2" />
+                  Admin Panel
+                </CardTitle>
+                <CardDescription>
+                  Manage the system
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">System administration tools</p>
+                </div>
+                <Button variant="outline" size="sm" className="mt-4 w-full">
+                  Admin Dashboard
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
